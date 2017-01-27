@@ -1,6 +1,8 @@
 #ifndef MC_NODE_HH
 #define MC_NODE_HH
 
+//TODO: optimize get_hit_probb(double*,double*,double*) (excessive checks at the moment)
+
 #include "globals.hh"
 #include "CustomRunManager.hh"
 #include "G4GeometryTolerance.hh"
@@ -16,16 +18,17 @@ class net_sim_data;
 class photon_event
 {
 public:
-	photon_event(one_sim_data* p_container) : pre_step_pos(), post_step_pos(), pre_volume(NULL), post_volume(NULL),
+	photon_event(one_sim_data* p_container) :/* pre_step_pos(), post_step_pos(), pre_volume(NULL), post_volume(NULL),*/
 		continue_prob(1), net_prob(1), daughter_node(0), has_hit(-1), chosen_event_type(RM_PHOTON_UNDEFINED), container(p_container), energy(-1*eV){};
 	~photon_event()
 	{
 		if (daughter_node) delete daughter_node;
 	}
-	G4ThreeVector pre_step_pos;
-	G4ThreeVector post_step_pos;
-	G4VPhysicalVolume* pre_volume;
-	G4VPhysicalVolume* post_volume;
+	//had to decrease memory consumption
+	//G4ThreeVector pre_step_pos;
+	//G4ThreeVector post_step_pos;
+	//G4VPhysicalVolume* pre_volume;
+	//G4VPhysicalVolume* post_volume;
 	G4double energy;
 
 	G4double continue_prob;
@@ -51,7 +54,8 @@ public:
 
 	//G4double probability; //if -1 - not calculated yet
 	G4double hit_prob(); //recursive function
-	void clear_prob_calc();
+	void one_sim_data::hit_prob(G4double* no_reemiss, G4double *reemissed, G4double* total);
+	//void clear_prob_calc();
 };
 
 class net_sim_data
@@ -69,6 +73,7 @@ public:
 	G4int num_of_succ_sims;
 	G4double probability; //if -1 - not calculated yet
 	G4double hit_prob(); //recursive function, average here
+	void hit_prob(G4double* no_reemiss, G4double *reemissed, G4double* total); //recursive function, average here
 	void clear_prob_calc();
 };
 
@@ -111,9 +116,12 @@ public:
 	photon_event* new_event(MC_node **pp_new_MC_node); //if pp_new_MC_node set no *NULL, then new event is crated in current MC_node 
 	G4int is_over(void); //all simulations are over
 
-	G4int is_accounted; //0 - it will be used in hit_prob() of 
-	void clear_prob_calc();
+	//G4int is_accounted; //0 - it will be used in hit_prob() of 
+	//void clear_prob_calc();
 	G4double hit_prob(); //net hit probability of node
+	void hit_prob(G4double* no_reemiss, G4double *reemissed, G4double* total);
+
+	int is_reemissed(void);
 };
 
 #endif

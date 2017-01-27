@@ -13,8 +13,8 @@ G4double one_sim_data::hit_prob() //recursive function
 	{
 		if (i->daughter_node)
 		{
-			if (!(i->daughter_node->is_accounted))
-			{
+			//if (!(i->daughter_node->is_accounted))
+			//{
 				G4double reach_prob;
 				auto j = i;
 				if ((++j) != events.rend())
@@ -24,26 +24,88 @@ G4double one_sim_data::hit_prob() //recursive function
 				if (node_probab >= 0) no_sim = 0;
 				node_probab = node_probab < 0 ? 0 : node_probab;
 				pb += reach_prob*node_probab;
-			}
+			//}
 		}
 	}
 	return no_sim?-1:pb;
 }
 
-void one_sim_data::clear_prob_calc()
+void one_sim_data::hit_prob(G4double* no_reemiss, G4double *reemissed, G4double* total) //recursive function
 {
 #ifdef DEBUG_MC_NODES
-G4cout << "OSM: clear_prob_calc()" << G4endl;
+	G4cout << "OSM: hit_prob()" << G4endl;
 #endif
-	if (events.begin() == events.end()) return;
+	G4int no_sim = 0;
+	if (events.begin() == events.end())
+	{
+		*no_reemiss = -1;
+		*reemissed = -1;
+		*total = -1;
+		return;
+	}
+	G4double pb_tot = events.back().net_prob*events.back().has_hit;
+	G4double pb_no_reemissed = 0, pb_reemissed = 0;
+	if (pb_tot < 0) { pb_tot = 0; no_sim = 1; }
+	if (container->parent)
+		if (container->parent->is_reemissed())
+			pb_reemissed = pb_tot;
+		else
+			pb_no_reemissed = pb_tot;
+	else
+		pb_no_reemissed = pb_tot;
+
 	for (auto i = events.rbegin(); i != events.rend(); ++i)
 	{
 		if (i->daughter_node)
 		{
-			i->daughter_node->clear_prob_calc();
+			//if (!(i->daughter_node->is_accounted))
+			//{
+				G4double reach_prob;
+				auto j = i;
+				if ((++j) != events.rend())
+					reach_prob = (j->net_prob);
+				else reach_prob = 1;
+				G4double node_probab_tot=0, node_reemiss=0, node_no_reemiss=0;
+				i->daughter_node->hit_prob(&node_no_reemiss,&node_reemiss,&node_probab_tot);
+				if (node_probab_tot >= 0) no_sim = 0;
+				node_probab_tot = node_probab_tot < 0 ? 0 : node_probab_tot;
+				node_no_reemiss = node_no_reemiss < 0 ? 0 : node_no_reemiss;
+				node_reemiss = node_reemiss< 0 ? 0 : node_reemiss;
+				pb_tot += reach_prob*node_probab_tot;
+				pb_no_reemissed += reach_prob*node_no_reemiss;
+				pb_reemissed += reach_prob*node_reemiss;
+			//}
 		}
 	}
+	if (no_sim)
+	{
+		*no_reemiss = -1;
+		*reemissed = -1;
+		*total = -1;
+	}
+	else
+	{
+		*no_reemiss = pb_no_reemissed;
+		*reemissed = pb_reemissed;
+		*total = pb_tot;
+	}
 }
+
+
+//void one_sim_data::clear_prob_calc()
+//{
+//#ifdef DEBUG_MC_NODES
+//G4cout << "OSM: clear_prob_calc()" << G4endl;
+//#endif
+//	if (events.begin() == events.end()) return;
+//	for (auto i = events.rbegin(); i != events.rend(); ++i)
+//	{
+//		if (i->daughter_node)
+//		{
+//			i->daughter_node->clear_prob_calc();
+//		}
+//	}
+//}
 
 void one_sim_data::set_event(const G4Step* step, G4double prob, G4int ev_type, G4int is_hit)
 {
@@ -54,10 +116,10 @@ void one_sim_data::set_event(const G4Step* step, G4double prob, G4int ev_type, G
 	{
 		events.back().has_hit = (events.back().has_hit == -1) ? is_hit : events.back().has_hit;
 		events.back().chosen_event_type = ev_type;
-		events.back().post_step_pos = step->GetPostStepPoint()->GetPosition();
-		events.back().pre_step_pos = step->GetPreStepPoint()->GetPosition();
-		events.back().post_volume = step->GetPostStepPoint()->GetPhysicalVolume();
-		events.back().pre_volume = step->GetPreStepPoint()->GetPhysicalVolume();
+		//events.back().post_step_pos = step->GetPostStepPoint()->GetPosition();
+		//events.back().pre_step_pos = step->GetPreStepPoint()->GetPosition();
+		//events.back().post_volume = step->GetPostStepPoint()->GetPhysicalVolume();
+		//events.back().pre_volume = step->GetPreStepPoint()->GetPhysicalVolume();
 		events.back().continue_prob = prob;
 		events.back().net_prob = prob*events.back().net_prob;
 		events.back().energy = step->GetPreStepPoint()->GetTotalEnergy();
@@ -125,19 +187,70 @@ G4double net_sim_data::hit_prob()
 	return probability/num_of_succ_sims;
 }
 
-void net_sim_data::clear_prob_calc()
+void net_sim_data::hit_prob(G4double* no_reemiss, G4double *reemissed, G4double* total)
 {
 #ifdef DEBUG_MC_NODES
-	G4cout << "NSM: clear_prob_calc()" << G4endl;
+	G4cout << "NSM: hit_prob()" << G4endl;
 #endif
-	probability = -1;
-	num_of_succ_sims = -1;
-	if (events.empty()) return;
+	if (events.empty())
+	{
+		*no_reemiss = -1;
+		*reemissed = -1;
+		*total = -1;
+		return;
+	}
+	*no_reemiss = 0;
+	*reemissed = 0;
+	*total = 0;
+	num_of_succ_sims = 0;
+	G4int is_reemissed = 0;
+	if (parent)
+		is_reemissed = parent->is_reemissed();
+	G4double ppp_tot;
+	G4double ppp_no_reemissed;
+	G4double ppp_reemised;
 	for (auto i = events.begin(); i != events.end(); i++)
 	{
-		i->clear_prob_calc();
+		i->hit_prob(&ppp_no_reemissed,&ppp_reemised,&ppp_tot);
+		if (ppp_tot >= 0)
+		{
+			num_of_succ_sims++;
+			*total += ppp_tot;
+			if (is_reemissed)
+				*reemissed += ppp_tot; //ppp_total==ppp_reemissed+ppp_no_reemissed?
+			else
+			{
+				*no_reemiss += ppp_no_reemissed;
+				*reemissed += ppp_reemised;
+			}
+		}
 	}
+	if (num_of_succ_sims == 0)
+	{
+		*no_reemiss = -1;
+		*reemissed = -1;
+		*total = -1;
+		return;
+	}
+	*no_reemiss = *no_reemiss/num_of_succ_sims;
+	*reemissed = *reemissed/num_of_succ_sims;
+	*total = *total/num_of_succ_sims;
 }
+
+//
+//void net_sim_data::clear_prob_calc()
+//{
+//#ifdef DEBUG_MC_NODES
+//	G4cout << "NSM: clear_prob_calc()" << G4endl;
+//#endif
+//	probability = -1;
+//	num_of_succ_sims = -1;
+//	if (events.empty()) return;
+//	for (auto i = events.begin(); i != events.end(); i++)
+//	{
+//		i->clear_prob_calc();
+//	}
+//}
 
 void net_sim_data::new_sequence(void)
 {
@@ -215,7 +328,7 @@ MC_node::MC_node(photon_event* parent) :simulation_data(this), ev_parent(parent)
 	parent_cont_cont = parent_container?parent_container->container:NULL;
 	gl_parent = parent_cont_cont?parent_cont_cont->parent:NULL;
 	chosen_type=MC_NODE_UNDEFINED;
-	is_accounted = 0;
+	//is_accounted = 0;
 	parent->daughter_node = this;
 	EnergySpectrum = NULL;
 }
@@ -441,22 +554,51 @@ void MC_node::set_MC_node(G4double prob, G4ThreeVector _start_point1, G4ThreeVec
 	PhotonEnergy = -1;
 	EnergySpectrum = energy_spec;
 }
-
-void MC_node::clear_prob_calc()
-{
-#ifdef DEBUG_MC_NODES
-	G4cout << "MCN: clear_prob_calc()" << G4endl;
-#endif
-	is_accounted = 0;
-	simulation_data.clear_prob_calc();
-}
+//
+//void MC_node::clear_prob_calc()
+//{
+//#ifdef DEBUG_MC_NODES
+//	G4cout << "MCN: clear_prob_calc()" << G4endl;
+//#endif
+//	is_accounted = 0;
+//	simulation_data.clear_prob_calc();
+//}
 
 G4double MC_node::hit_prob() //net hit probability of node
 {
-	is_accounted = 1;
+	//is_accounted = 1;
 	G4double g = node_probability*simulation_data.hit_prob();
 #ifdef DEBUG_MC_NODES
 	G4cout << "MCN" << chosen_type << ": hit_prob() "<<g<< G4endl;
 #endif
 	return g;
+}
+
+void MC_node::hit_prob(G4double* no_reemiss, G4double *reemissed, G4double* total) //net hit probability of node
+{
+	//is_accounted = 1;
+	G4double n_res,reem,tot;
+	simulation_data.hit_prob(&n_res,&reem,&tot);
+	*no_reemiss=node_probability*n_res;
+	*reemissed = node_probability*reem;
+	*total=node_probability*tot;
+#ifdef DEBUG_MC_NODES
+	G4cout << "MCN" << chosen_type << ": hit_prob() " << *total << G4endl;
+#endif
+	return ;
+}
+
+int MC_node::is_reemissed(void)
+{
+	MC_node* p = this;
+	photon_event* par;
+	while (NULL != p)
+	{
+		par = p->ev_parent;
+		p = par->container->container->parent;
+		if (p)
+			if (p->chosen_type == MC_NODE_CONTINIOUS)
+				return 1;
+	}
+	return 0;
 }

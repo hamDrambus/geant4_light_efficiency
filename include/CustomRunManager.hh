@@ -2,9 +2,15 @@
 #define CustomRunManager_h 1
 
 //#define DEBUG_MC_NODES
+#define TOP_MESH_TEST
+//^if defined, then additional detector box is created above the topmost pseudo GEM (but below cell volume), 
+//and photon posistions upon the hit the are written in bmp. Also photons are generated orthogonally to the plate in order to 'scan' it. 
+//Position of initial photons follows the square pattern with small fluctuations. (initial distributions are overridden)
+
 #define TEMP_CODE_
 #define WLS_FILM_WIDTH 100*micrometer
 #define PMMA_WIDTH 1.5*mm
+#define PMT_DIAMETER 51*mm
 //^marks everything that is temporary so I don't forget
 #define MIN_ALLOWED_PROBABILITY 4e-6
 #define MIN_ALLOWED_STEPPING 4e-6
@@ -63,7 +69,14 @@ public:
 	
 	G4int spawn_new_MC_node(const G4Step* step, G4double prob, G4ThreeVector momentum, G4ThreeVector polarization, G4int num_of_sims = 1);
 	G4int spawn_new_MC_node(const G4Step* step, G4double prob, G4Material *WSL_pars, G4int num_of_sims = 150); //or just abs_length?
-	
+#ifdef TOP_MESH_TEST
+	std::list<G4double> hits_xs, hits_ys, hits_probs;
+	G4int x_num, y_num; //discretisation parameters (same as size of bmp)
+	G4double x_start, y_start;
+	G4double t_step, t_uncert;
+	void on_hit_proc(G4ThreeVector point,G4double prob); //called when test detector is hit with photon
+	void export_to_bmp();
+#endif
 	//below manage memory allocation for photon_events* chains (list that is)
 	//so that every photon process is written at the right place 
 	G4int init_event(); //called at a start of event (=simulation)
@@ -89,8 +102,19 @@ public:
 	void SetPhEvProb(G4double evProb);
 	void SetHit(G4bool is_hit=true);
 	G4double get_total_detetion_eff(void);
+	void get_total_detetion_eff(G4double* no_reemiss, G4double *reemissed, G4double* total);
 	CustomRunManager() :G4RunManager(),  extra_run_id(1), curr_ph_ev_prob(RM_PHOTON_UNDEFINED), curr_ph_ev_type(1),
-		has_finished_secondaries(1), current_working_node(NULL), last_event(NULL), primary_Monte_Carlo(NULL) {};
+		has_finished_secondaries(1), current_working_node(NULL), last_event(NULL), primary_Monte_Carlo(NULL) 
+	{
+#ifdef TOP_MESH_TEST
+		x_num = 1200;
+		y_num = 900;
+		x_start = -141 * mm / 2;
+		y_start = -141 * mm / 2;
+		t_step = 0.05*mm;
+		t_uncert = 0.005*mm;
+#endif
+	};
 	~CustomRunManager(){if (primary_Monte_Carlo) delete primary_Monte_Carlo;};
 	//depr - went to init_event //virtual void Initialize(); //clear MC_nodes and create parent one, clear all previous sim data
 	//deleting last MC_nodes and sim data - in destructor!
@@ -107,7 +131,7 @@ public:
 	G4double get_new_spawn_prob();//called in spawn_new_MC_node and prevents the tree from being too deep
 	//aborts spawnig if probability of a new node is less than MIN_ALLOWED_PROBABILITY
 	G4int get_sim_depth(); //affects number of simulation for secondary MC's - the deeper the less
-	G4int get_sim_depth(G4int node_type);
+	G4int get_sim_depth(G4int node_type); //same as above but seaches just particular type of nodes (in order to prevent double reemission)
 	G4double get_curr_event_probab();
 	G4int get_detected_spectrum(std::list<G4double> *energies, std::list < G4double> *probabilities);
 	void get_detected_spectrum(std::string out_filename = "WLS_spectrum_test.txt");

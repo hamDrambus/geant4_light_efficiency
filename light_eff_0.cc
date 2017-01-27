@@ -53,8 +53,12 @@ int main(int argc,char** argv)
   // Initialize G4 kernel
   //
   runManager->Initialize();
-  runManager->BeamOn(300);
-  G4cout<<"total efficieency: "<<runManager->get_total_detetion_eff()<<G4endl;
+  runManager->BeamOn(1);
+  G4double pb_total, pb_no_reemiss, pb_reemissed;
+  runManager->get_total_detetion_eff(&pb_no_reemiss, &pb_reemissed, &pb_total);
+  G4cout<<"total efficieency: "<<pb_total<<G4endl;
+  G4cout << "not reemissed efficieency: " << pb_reemissed << G4endl;
+  G4cout << "remissed efficieency: " << pb_no_reemiss<< G4endl; //messed up with names for some reason
   //primary_Monte_Carlo->events.size() is always larger by 1 then actual number of primary runs, because 
   //primary_Monte_Carlo->new_sequence() and ->new_event() are called at the end of every sim. (see CustomRunManager->next_event())
   //(so that before every global run last_photon_event is allocated)

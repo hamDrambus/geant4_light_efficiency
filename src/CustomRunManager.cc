@@ -98,16 +98,16 @@ G4int CustomRunManager::spawn_new_MC_node(const G4Step* step, G4double prob, G4M
 		return 0;
 	}
 	G4int depth = get_sim_depth(MC_NODE_CONTINIOUS);
-	if (depth >= 3)
-	{
-		num_of_sims = 0;
-		goto endf;
-	}
-	if (depth >= 2)
-	{
-		num_of_sims = 0;
-		goto endf;
-	}
+	//if (depth >= 3)
+	//{
+	//	num_of_sims = 0;
+	//	goto endf;
+	//}
+	//if (depth >= 2)
+	//{
+	//	num_of_sims = 0;
+	//	goto endf;
+	//}
 	if (depth >= 1)
 		num_of_sims = 0;// num_of_sims / 10.0;
 endf:
@@ -296,6 +296,14 @@ G4double CustomRunManager::get_total_detetion_eff(void) //not checked whether si
 	return primary_Monte_Carlo->hit_prob();
 }
 
+void CustomRunManager::get_total_detetion_eff(G4double* no_reemiss, G4double *reemissed, G4double* total)
+{
+	*total = 0;
+	*no_reemiss = 0;
+	*reemissed = 0;
+	primary_Monte_Carlo->hit_prob(no_reemiss, reemissed, total);
+}
+
 //0 - kill process, 1 - select reflection, 2 - select defraction, 3 - select both
 G4int CustomRunManager::select_photon_BP(const G4Step* step, G4ThreeVector defl_momentum, G4ThreeVector refl_momentum)
 {
@@ -309,9 +317,14 @@ G4int CustomRunManager::select_photon_BP(const G4Step* step, G4ThreeVector defl_
 	G4LogicalVolume* post_volume = step->GetPostStepPoint()->GetTouchableHandle()->GetVolume()->GetLogicalVolume();
 	if ((pre_volume == detC->box_interior) || (pre_volume==detC->LAr_layer))
 	{
-		if ((post_volume != detC->bot_plate) && (post_volume != detC->top_plate))
+		if ((post_volume != detC->bot_ps_plate) && (post_volume != detC->top_ps_plate))
 			return RM_CHOOSE_DEFL;
 		else
+			return RM_CHOOSE_REFR;
+	}
+	if (((pre_volume == detC->top_cell_hole) || (pre_volume == detC->top_cell_container)))
+	{
+		if (post_volume==detC->top_cell)
 			return RM_CHOOSE_REFR;
 	}
 	//if (pre_volume == detC->mid_top)
@@ -343,7 +356,7 @@ G4ThreeVector CustomRunManager::GenMomentum()
 	if (current_working_node != NULL)
 		return current_working_node->GenMomentum();
 //#ifdef TEMP_CODE_
-//	return G4ThreeVector(1, 0, 0); //primary event parameters are such for a while
+//	return G4ThreeVector(0, 1, 0); //primary event parameters are such for a while
 //#endif
 	G4double phi = CLHEP::twopi*G4UniformRand();
 	G4double cos_theta = 2*(G4UniformRand())-1;
@@ -370,12 +383,15 @@ G4double CustomRunManager::GenEnergy()
 	if (current_working_node != NULL)
 		return current_working_node->GenEnergy();
 //#ifdef TEMP_CODE_
-//	//G4double w_e = 280 + G4UniformRand()*(600-280);//nm
-//	//w_e = 1 * eV*(1.2398e3 / w_e);
-//	G4double w_e = eV*(2.06 + G4UniformRand()*(4.43 -2.06));//eV
-//	return w_e;
+//	return 3.6*eV;
+// 9.65*eV ==128nm
+// 3.9236*eV == 316nm
+// 3.6791*eV == 337nm
+// 3.4632*eV == 358nm
+// 3.2585*eV == 380.5nm
+// 3.0538*eV == 406nm
 //#endif 
-	return 9.65*eV; //primary event parameters are such for a while
+	return 3.9236*eV; //primary event parameters are such for a while
 }
 
 G4double CustomRunManager::get_new_spawn_prob()
@@ -586,3 +602,47 @@ void CustomRunManager::get_detected_spectrum(std::string out_filename)
 	file.close();
 #undef NUM_OF_BINS
 }
+
+#ifdef TOP_MESH_TEST
+void CustomRunManager::on_hit_proc(G4ThreeVector point, G4double prob) //called when test detector is hit with photon
+{
+	G4double net_prob = prob*get_curr_event_probab();
+	if (net_prob < 0) return;
+	hits_xs.push_back(point.x);
+	hits_ys.push_back(point.y);
+	hits_probs.push_back(net_prob);
+}
+
+void CustomRunManager::export_to_bmp() //first step is to map position of hits with arbitrary coordinates to bitmap. Then write to file 
+{
+	G4double * bits = new G4double[x_num*y_num];
+	G4double lx = t_step*x_num;
+	G4double ly = t_step*y_num;
+	while ((!hits_xs.empty()) && (!hits_ys.empty()) && (!hits_probs.empty()))
+	{
+		G4double x = hits_xs.back()-x_start;
+		G4double y = hits_ys.back()-y_start;
+		G4double prob = hits_probs.back();
+		G4int x_ind = (int)(x / lx);
+		G4int y_ind = (int)(y / ly);
+#define NUM_TO_CONSIDER 3
+		G4double neighbours[NUM_TO_CONSIDER*NUM_TO_CONSIDER];
+		//firstly - obtain squared lengths to the centers of bits in bmp, then exp distribution to the neighbours
+		for (G4int h = 0; h < NUM_TO_CONSIDER*NUM_TO_CONSIDER; h++)
+		{
+			G4int te_x_ind = (h / NUM_TO_CONSIDER) - 1;
+			G4int te_y_ind = h % NUM_TO_CONSIDER - 1;
+			neighbours[h] = (te_x_ind*t_step)*(te_x_ind*t_step) + (te_y_ind*t_step)*(te_y_ind*t_step);
+			neighbours[h] = exp(-(t_step*t_step)/neighbours[h]);
+		}
+
+#undef NUM_TO_CONSIDER
+		hits_xs.pop_back();
+		hits_ys.pop_back();
+		hits_probs.pop_back();
+	}
+
+	delete[] bits;
+}
+#endif
+

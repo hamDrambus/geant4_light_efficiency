@@ -33,7 +33,6 @@ void B1SteppingAction::UserSteppingAction(const G4Step* step)
 		return;
 	}
   G4LogicalVolume* post_log_volume = tremor->GetLogicalVolume();
-
   CustomRunManager* manman = (CustomRunManager*)(G4RunManager::GetRunManager());
   if (step->GetTrack()->GetTrackStatus() == fStopAndKill) //in case some process killed the track, I need to handle events properly
   {
@@ -50,8 +49,8 @@ void B1SteppingAction::UserSteppingAction(const G4Step* step)
   }
   //WARNING! changed casting here
   B1DetectorConstruction* detectorConstruction = (B1DetectorConstruction*) (manman->GetUserDetectorConstruction());
-  G4double detect_prob = detectorConstruction->GetHitProbability(post_log_volume, step->GetPostStepPoint()->GetTotalEnergy(),
-	  step->GetPostStepPoint()->GetMomentumDirection(), step->GetPostStepPoint()->GetPosition());
+  detectorConstruction->top_GEM->PostSpeppingAction(step); //changes the positoin in a manner of "teleportation"
+  G4double detect_prob = detectorConstruction->GetHitProbability(step->GetPostStepPoint());
   if (0 == detect_prob)
   {
 	  manman->SetHit(0);
@@ -63,6 +62,10 @@ void B1SteppingAction::UserSteppingAction(const G4Step* step)
   {
 	  manman->SetHit(1);
 	  step->GetTrack()->SetTrackStatus(fStopAndKill);
+#ifdef TOP_MESH_TEST
+	  if (step->GetPostStepPoint()->GetTouchableHandle()->GetVolume()->GetLogicalVolume() == detectorConstruction->top_mesh_test_detector)
+		  manman->on_hit_proc(step->GetPostStepPoint()->GetPosition(), detect_prob);
+#endif
 	  manman->next_event(step);
 	  return;
   }
@@ -72,6 +75,10 @@ void B1SteppingAction::UserSteppingAction(const G4Step* step)
 	  return;
   }
   //if detection probability is not a 0 or 1, then it's treated as process
+#ifdef TOP_MESH_TEST
+  if (step->GetPostStepPoint()->GetTouchableHandle()->GetVolume()->GetLogicalVolume() == detectorConstruction->top_mesh_test_detector)
+	  manman->on_hit_proc(step->GetPostStepPoint()->GetPosition(), detect_prob);
+#endif
   manman->SetPhEvProb(detect_prob);
   manman->SetPhEvType(RM_PHOTON_DETECTION);
   manman->process_end(step);

@@ -10,24 +10,82 @@
 #include "G4Sphere.hh"
 #include "G4Tubs.hh"
 #include "G4Trd.hh"
+#include "G4Polyhedra.hh"
+#include "G4Polycone.hh"
 #include "G4LogicalVolume.hh"
 #include "G4PVPlacement.hh"
 #include "G4PhysicalConstants.hh"
 #include "G4SystemOfUnits.hh"
+#include "G4ParallelWorldProcess.hh"
+#include "G4TransportationManager.hh"
 
 #define _light_blue_RGB 0.5, 0.5, 0.9
 #define _red_RGB 0.9, 0.4, 0.4
 
 B1DetectorConstruction::B1DetectorConstruction()
 	: G4VUserDetectorConstruction()
-{ }
+{
+	x_rot_m = NULL;
+	y_rot_m = NULL;
+	top_GEM = NULL;
+}
 
 B1DetectorConstruction::~B1DetectorConstruction()
-{ }
+{ 
+	if (x_rot_m) delete x_rot_m;
+	if (y_rot_m) delete y_rot_m;
+	if (top_GEM) delete top_GEM;
+}
 
-G4double B1DetectorConstruction::GetHitProbability
-(G4LogicalVolume* in_volume, G4double particle_energy, G4ThreeVector Momentum_dir, G4ThreeVector position)
+G4ThreeVector B1DetectorConstruction::get_global_normal(G4StepPoint* point, G4int *validity)
 {
+	G4bool valid = 1;
+	G4ThreeVector position = point->GetPosition();
+	//obtaining of the global normal to entered volume (copied from boundary process)
+	G4int hNavId = G4ParallelWorldProcess::GetHypNavigatorID();
+	G4Navigator* Nav = G4TransportationManager::GetTransportationManager()->GetNavigatorForTracking();
+	G4ThreeVector theGlobalNormal = Nav->GetLocalExitNormal(&valid);
+	*validity = valid;
+	if (valid)
+	{
+		theGlobalNormal = Nav->GetLocalToGlobalTransform().TransformAxis(theGlobalNormal);
+	}
+	else
+	{
+		G4ExceptionDescription ed;
+		ed << " G4DetectorConstruction->GetHitProbability(): "
+			<< " The Navigator reports that it returned an invalid normal"
+			<< G4endl;
+		G4Exception("G4DetectorConstruction->GetHitProbability()", "Det_contsr",
+			EventMustBeAborted, ed,
+			"Invalid Surface Normal - Geometry must return valid surface normal");
+		return theGlobalNormal;
+	}
+	if (theGlobalNormal*theGlobalNormal != 0)
+	{
+		return theGlobalNormal;
+	}
+	*validity = 0;
+	return theGlobalNormal;
+}
+
+G4double B1DetectorConstruction::GetHitProbability(G4StepPoint* post_point)
+{
+	G4VPhysicalVolume* tremor = post_point->GetTouchableHandle()->GetVolume();
+	if (NULL == tremor)
+	{// kind of error
+		return -1;
+	}
+	G4LogicalVolume* in_volume = tremor->GetLogicalVolume();
+	G4ThreeVector position = post_point->GetPosition();
+	G4ThreeVector Momentum_dir = post_point->GetMomentumDirection();
+	G4double particle_energy = post_point->GetTotalEnergy();
+	const G4Step* hStep = G4ParallelWorldProcess::GetHyperStep();
+	G4int is_on_boundary = 0;
+	if (hStep)
+		is_on_boundary = (hStep->GetPostStepPoint()->GetStepStatus() == fGeomBoundary);
+	else
+		is_on_boundary = (post_point->GetStepStatus() == fGeomBoundary);
 	for (auto j = detector_volumes.begin(); j != detector_volumes.end(); j++)
 	{
 		if (*j == in_volume)
@@ -35,6 +93,14 @@ G4double B1DetectorConstruction::GetHitProbability
 //#ifdef TEMP_CODE_
 //			return 1;
 //#endif
+			if (is_on_boundary)
+			{
+				G4int is_valid = 1;
+				G4ThreeVector theGlobalNormal = get_global_normal(post_point, &is_valid);
+				if (is_valid)
+					if (theGlobalNormal*Momentum_dir < 0)
+						return -1;
+			}
 			G4Material* mat_= in_volume->GetMaterial();
 			if (mat_)
 			{
@@ -51,13 +117,23 @@ G4double B1DetectorConstruction::GetHitProbability
 					}
 				}
 			}
-			return 1; //TODO: modify considering momentum and position to avoid nesting detector volume in the larger volume of the same properties? 
+			return 1; //^DONE? TODO: modify considering momentum and position to avoid nesting detector volume in the larger volume of the same properties? 
 		}
 	}
 	for (auto j = absorbtion_volumes.begin(); j != absorbtion_volumes.end(); j++)
 	{
 		if (*j == in_volume)
+		{
+			if (is_on_boundary)
+			{
+				G4int is_valid = 1;
+				G4ThreeVector theGlobalNormal = get_global_normal(post_point, &is_valid);
+				if (is_valid)
+					if (theGlobalNormal*Momentum_dir < 0)
+						return -1;
+			}
 			return 0; //kills event
+		}
 	}
 	return -1;
 }
@@ -317,10 +393,7 @@ G4Material* B1DetectorConstruction::_Acrylic_mat(void)
 	G4MaterialPropertiesTable* prop_table = new G4MaterialPropertiesTable();
 	G4double energies[6] = { 1.55*eV, 2.817*eV, 2.95*eV, 3.10*eV, 3.54*eV, 4.13*eV};
 	G4double rindexes[6] = { 1.485,   1.501,    1.503,   1.47,    1.46,    1.46}; //TODO: confirm the data
-//#ifdef TEMP_CODE_
-//	G4double energies[6] = { 1.55*eV, 2.817*eV, 2.95*eV, 3.10*eV, 3.54*eV, 4.13*eV };
-//	G4double rindexes[6] = { 1, 1, 1, 1, 1, 1};
-//#endif
+
 	prop_table->AddProperty("RINDEX", energies, rindexes, 6);
 	G4double wavelen[26] = { 320*nm, 336 * nm, 343.8 * nm, 350 * nm, 360 * nm, 363.5 * nm, 366.4 * nm, 367 * nm,
 		371.9 * nm, 373.5 * nm, 376 * nm, 378 * nm, 380 * nm, 382.2*nm, 385.7*nm, 387.3*nm, 390.6*nm, 
@@ -365,6 +438,24 @@ G4Material* B1DetectorConstruction::_FusedSilica_mat(void)
 	return _Window;
 }
 
+G4Material* B1DetectorConstruction::_fr4_mat(void)
+{
+	G4Element* el_C = new G4Element("Carbon", "C", 6, 12 * g / mole);
+	G4Element* el_O = new G4Element("Oxygen", "O", 8, 16 * g / mole);
+	G4Element* el_H = new G4Element("Hydrogen", "H", 1, 1 * g / mole);
+	G4Material* _fr4 = new G4Material("PMMA (Acrylic)", 1.85 * g / cm3, 3, kStateSolid, 87 * kelvin, 1 * atmosphere);
+	_fr4->AddElement(el_C, 5);
+	_fr4->AddElement(el_H, 8);
+	_fr4->AddElement(el_O, 2);
+
+	G4MaterialPropertiesTable* prop_table = new G4MaterialPropertiesTable();
+	G4double energies[10] = { 2.72 * eV, 2.95*eV, 3.06*eV, 3.4*eV, 4.11*eV, 4.43*eV, 5.79*eV, 6.2*eV, 6.7*eV, 7.29*eV };
+	G4double rindexes[10] = { 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5};
+	//^most taken at room temperature: error is about 1e-3
+	prop_table->AddProperty("RINDEX", energies, rindexes, 10);
+	return _fr4;
+}
+
 G4VPhysicalVolume* B1DetectorConstruction::Construct()
 {  
   // Get nist material manager
@@ -376,6 +467,7 @@ G4VPhysicalVolume* B1DetectorConstruction::Construct()
   G4Material* LAr_mat = _LArgon_mat();
   G4Material* Ar_mat = _Argon_mat();
   G4Material* FusedSilica_mat = _FusedSilica_mat();
+  G4Material* FR4_mat = _fr4_mat();
 
   // Option to switch on/off checking of volumes overlaps
   //
@@ -383,10 +475,12 @@ G4VPhysicalVolume* B1DetectorConstruction::Construct()
   //     
   // World
   //
+#define plate_W 0.6
+#define plate_real_W 0.5
   G4double world_sizeXY = (141+2*(4+2+1+1)) * mm+2*(WLS_FILM_WIDTH+PMMA_WIDTH);
-  G4double world_sizeZ  = (20+0.5+18+4+0.5+20+2*(1+1))*mm;
+  G4double world_sizeZ  = (20+plate_W+18+4+plate_W+20+2*(1+1))*mm;
   G4double envelope_sizeXY = (141 + 2 * (4 + 2 + 1)) * mm + 2 * (WLS_FILM_WIDTH + PMMA_WIDTH);
-  G4double envelope_sizeZ = (20 + 0.5 + 18 + 4 + 0.5 + 20 + 2 * (1))*mm;
+  G4double envelope_sizeZ = (20 + plate_W + 18 + 4 + plate_W + 20 + 2 * (1))*mm;
 
   G4Box* solidWorld = new G4Box("World", 0.5*world_sizeXY, 0.5*world_sizeXY, 0.5*world_sizeZ);
   world = new G4LogicalVolume(solidWorld, Ar_mat,"World");
@@ -399,32 +493,71 @@ G4VPhysicalVolume* B1DetectorConstruction::Construct()
 
   G4double box_sizeXY = (141 + 2 * (2)) * mm + 2 * (WLS_FILM_WIDTH + PMMA_WIDTH); 
   //^includes gap between PMT (window) and acrylic. Liquid in that gap is placed here 
-  G4double box_sizeZ = (20 + 0.5 + 18 + 4 + 0.5 + 20)*mm;
+  G4double box_sizeZ = (20 + plate_W + 18 + 4 + plate_W + 20)*mm;
   G4Box* solid_box = new G4Box("MainBox", 0.5*box_sizeXY, 0.5*box_sizeXY, 0.5 *box_sizeZ); //volume exluding detectors
   box = new G4LogicalVolume(solid_box, Ar_mat, "MainBox");
   G4VPhysicalVolume* phys_box = new G4PVPlacement(0, G4ThreeVector(0,0,0), box, "MainBox", envelope, false, 0, checkOverlaps);
 
   G4double box_interior_sizeXY = (141) * mm;
-  G4double box_interior_sizeZ = (0.5 + 18 + 4 + 0.5)*mm;
+  G4double box_interior_sizeZ = (plate_W + 18 + 4 + plate_W)*mm;
   G4Box* solid_box_interior = new G4Box("MainBoxInterior", 0.5*box_interior_sizeXY, 0.5*box_interior_sizeXY, 0.5 *box_interior_sizeZ);
   //volume contaning GEMs and a bit of liquid argon
   box_interior = new G4LogicalVolume(solid_box_interior, Ar_mat, "MainBoxInterior");
   G4VPhysicalVolume* phys_box_interior = new G4PVPlacement(0, G4ThreeVector(0, 0, 0), box_interior, 
 	  "MainBoxInterior", box, false, 0, checkOverlaps);
 
-  G4Box* solid_top_GEM = new G4Box("TopGEM", 0.5*(141*mm), 0.5*(141*mm), 0.5 *(0.5*mm));
-  G4Box* solid_bot_GEM = new G4Box("BotGEM", 0.5*(141 * mm), 0.5*(141 * mm), 0.5 *(0.5*mm));
+  G4Box* solid_top_pseudo_GEM = new G4Box("TopPlate", 0.5*(141 * mm), 0.5*(141 * mm), 0.5 *(plate_W*mm)); //mapped to cells
+  G4Box* solid_bot_pseudo_GEM = new G4Box("BotPlate", 0.5*(141 * mm), 0.5*(141 * mm), 0.5 *(plate_W*mm)); //mapped to cells
+
+  G4Box* solid_top_GEM = new G4Box("TopGEM", 0.5*(141*mm), 0.5*(141*mm), 0.5 *(plate_real_W*mm)); //placed in above pseudo volumes
+  G4Box* solid_bot_GEM = new G4Box("BotGEM", 0.5*(141 * mm), 0.5*(141 * mm), 0.5 *(plate_real_W*mm));
   G4Box* solid_LAr_layer = new G4Box("LArLayer", 0.5*(141 * mm), 0.5*(141 * mm), 0.5 *(4*mm));
-  top_plate= new G4LogicalVolume(solid_top_GEM, Copper_mat, "TopGEM");
-  bot_plate = new G4LogicalVolume(solid_bot_GEM, Copper_mat, "BotGEM");
+  top_ps_plate= new G4LogicalVolume(solid_top_pseudo_GEM, Ar_mat, "TopPseudoGEM");
+  bot_ps_plate = new G4LogicalVolume(solid_bot_pseudo_GEM, LAr_mat, "BotPseudoGEM");
+  top_cu_plate = new G4LogicalVolume(solid_top_GEM, Copper_mat, "TopGEM");
+  bot_cu_plate = new G4LogicalVolume(solid_bot_GEM, Copper_mat, "BotGEM");
   LAr_layer = new G4LogicalVolume(solid_LAr_layer, LAr_mat, "LArLayer");
-  G4VPhysicalVolume* phys_top_GEM = new G4PVPlacement(0, G4ThreeVector(0, 0, 0.5*(18 + 4 + 0.5)*mm), top_plate, "TopGEM", box_interior,
-	  false, 0, checkOverlaps);
-  G4VPhysicalVolume* phys_bot_GEM = new G4PVPlacement(0, G4ThreeVector(0, 0, -0.5*(18 + 4 + 0.5)*mm), bot_plate, "BotGEM", box_interior,
-	  false, 0, checkOverlaps);
+  G4VPhysicalVolume* phys_top_pseudo_GEM = new G4PVPlacement(0, G4ThreeVector(0, 0, 0.5*(18 + 4 + plate_W)*mm), top_ps_plate,
+	  "TopPseudoGEM", box_interior, false, 0, checkOverlaps);
+  G4VPhysicalVolume* phys_bot_pseudo_GEM = new G4PVPlacement(0, G4ThreeVector(0, 0, -0.5*(18 + 4 + plate_W)*mm), bot_ps_plate,
+	  "BotPseudoGEM", box_interior, false, 0, checkOverlaps);
   G4VPhysicalVolume* phys_LAr_layer = new G4PVPlacement(0, G4ThreeVector(0, 0, -0.5*(18)*mm), LAr_layer, "LArLayer", box_interior,
 	  false, 0, checkOverlaps);
-
+  G4VPhysicalVolume* phys_top_CU = new G4PVPlacement(0, G4ThreeVector(0, 0, 0), top_cu_plate, //placed in above pseudo volumes
+	  "TopCU", top_ps_plate, false, 0, checkOverlaps);
+  G4VPhysicalVolume* phys_bot_CU = new G4PVPlacement(0, G4ThreeVector(0, 0, 0), bot_ps_plate,
+	  "BotCU", bot_ps_plate, false, 0, checkOverlaps);
+	//================================ CELLs
+#define CELL_SIZE 0.45
+#define CELL_HOLE_DIAM 0.5
+#define CELL_RIM_W 0.1
+  G4double r_[2] = {CELL_SIZE+0.1,CELL_SIZE+0.1};
+  G4double z_[2] = { -plate_W / 2, plate_W/2 };
+  G4Polyhedra* solid_top_cell_container = new G4Polyhedra("top_cell_container", pi/6.0, twopi, 6, 2,r_,z_);
+  top_cell_container = new G4LogicalVolume (solid_top_cell_container,Ar_mat,"top_cell_container");
+  G4VPhysicalVolume* phys_top_cell_container = new G4PVPlacement(0, G4ThreeVector(0, 0, 0.5*(18 + 4 + plate_W+12)*mm), top_cell_container,
+	  "TopCellContainer", box, false, 0, checkOverlaps);
+  r_[0] = CELL_SIZE; r_[1] = CELL_SIZE;
+  z_[0] = -plate_real_W / 2; z_[0] = plate_real_W / 2;
+  G4Polyhedra* solid_top_cell= new G4Polyhedra("top_cell", pi / 6.0, twopi, 6, 2, r_, z_);
+  top_cell = new G4LogicalVolume(solid_top_cell, FR4_mat, "top_cell");
+  G4VPhysicalVolume* phys_top_cell = new G4PVPlacement(0, G4ThreeVector(0, 0, 0), top_cell,
+	  "TopCellContainer", top_cell_container, false, 0, checkOverlaps);
+  G4double hole_rs[3] = { CELL_HOLE_DIAM / 2 + CELL_RIM_W, CELL_HOLE_DIAM / 2, CELL_HOLE_DIAM / 2 + CELL_RIM_W };
+  G4double hole_zs[3] = { -plate_real_W / 2, 0, plate_real_W / 2 };
+  G4Polycone* solid_top_cell_hole = new G4Polycone("cell_hole",0,twopi,3,hole_rs,hole_zs);
+  top_cell_hole = new G4LogicalVolume(solid_top_cell_hole, Ar_mat, "top_cell_hole");
+  G4VPhysicalVolume* phys_top_cell_hole = new G4PVPlacement(0, G4ThreeVector(0, 0, 0), top_cell_hole,
+	  "TopCellContainer", top_cell, false, 0, checkOverlaps);
+  top_GEM = new PseudoMesh(top_ps_plate, G4ThreeVector(0, 0, 0.5*(18 + 4 + plate_W)*mm), 141 * mm, 141 * mm, plate_W,
+	  top_cell_container, G4ThreeVector(0, 0, 0.5*(18 + 4 + plate_W + 12)*mm), CELL_SIZE / 2, hexagonal_mapping);
+	//================================
+#ifdef TOP_MESH_TEST
+  G4Box* solid_top_mesh_test_detector = new G4Box("Top_mesh_test_detector", 0.5*(141 * mm), 0.5*(141 * mm), 0.5 *(plate_real_W*mm));
+  top_mesh_test_detector = new G4LogicalVolume(solid_top_mesh_test_detector,Ar_mat,"top_mesh_test_detector");
+  G4VPhysicalVolume* phys_top_mesh_test_detector = new G4PVPlacement(0, G4ThreeVector(0, 0, 0.5*(18 + 4 + plate_W + 12)*mm), top_cell_hole,
+	  "TopCellContainer", box, false, 0, checkOverlaps);
+#endif
   G4Box* solid_x_WLS = new G4Box("x_WLS", 0.5*(WLS_FILM_WIDTH), 0.5*(141 * mm + WLS_FILM_WIDTH), 0.5 *(box_sizeZ));
   G4Box* solid_y_WLS = new G4Box("y_WLS", 0.5*(141 * mm + WLS_FILM_WIDTH), 0.5*(WLS_FILM_WIDTH), 0.5 *(box_sizeZ));
   G4Box* solid_x_Acrylic = new G4Box("x_Acrylic", 0.5*(PMMA_WIDTH), 0.5*(141 * mm + PMMA_WIDTH + 2*WLS_FILM_WIDTH), 0.5 *(box_sizeZ));
@@ -472,93 +605,94 @@ G4VPhysicalVolume* B1DetectorConstruction::Construct()
   G4VPhysicalVolume* phys_Yn_LArGap = new G4PVPlacement(0, G4ThreeVector(-0.5*(2 * mm), -0.5*(141 * mm + 2 * (WLS_FILM_WIDTH + PMMA_WIDTH) + 2 * mm), -0.5*(18 + 0.5 + 20)*mm),
 	  Yn_LAr_gap, "Y_NegativeLArGap", box, false, 0, checkOverlaps);
 
-#define DET_OFFSET 0.1*mm
-  G4Box* solid_x_window = new G4Box("x_window", 0.5*(4*mm), 0.5*(44 * mm), 0.5 *(44*mm));
-  G4Box* solid_y_window = new G4Box("y_window", 0.5*(44*mm), 0.5*(4*mm), 0.5 *(44*mm));
-  G4Box* solid_x_PMT = new G4Box("x_PMT", 0.5*(4 * mm - DET_OFFSET), 0.5*(44 * mm - DET_OFFSET), 0.5 *(44 * mm - DET_OFFSET));
-  G4Box* solid_y_PMT = new G4Box("y_PMT", 0.5*(44 * mm - DET_OFFSET), 0.5*(4 * mm - DET_OFFSET), 0.5 *(44 * mm - DET_OFFSET));
 
-  Xp_PMT_window = new G4LogicalVolume(solid_x_window, FusedSilica_mat, "X_PositivePMT_Window");
-  Xn_PMT_window = new G4LogicalVolume(solid_x_window, FusedSilica_mat, "X_NegativePMT_Window");
-  Yp_PMT_window = new G4LogicalVolume(solid_y_window, FusedSilica_mat, "Y_PositivePMT_Window");
-  Yn_PMT_window = new G4LogicalVolume(solid_y_window, FusedSilica_mat, "Y_NegativePMT_Window");
+  G4Tubs* solid_PMT = new G4Tubs("window", 0, (PMT_DIAMETER/*-DET_OFFSET*/) / 2, (4 * mm/*-DET_OFFSET*/)/2, 0 * deg, 360 * deg);
+  Xp_PMT = new G4LogicalVolume(solid_PMT, FusedSilica_mat, "X_PositivePMT_Window");
+  Xn_PMT = new G4LogicalVolume(solid_PMT, FusedSilica_mat, "X_NegativePMT_Window");
+  Yp_PMT = new G4LogicalVolume(solid_PMT, FusedSilica_mat, "Y_PositivePMT_Window");
+  Yn_PMT = new G4LogicalVolume(solid_PMT, FusedSilica_mat, "Y_NegativePMT_Window");
+  G4RotationMatrix *x_rot_m = new G4RotationMatrix();
+  G4RotationMatrix *y_rot_m = new G4RotationMatrix();
+  x_rot_m->rotateY(90 * deg);
+  y_rot_m->rotateX(90 * deg);
 
-  Xp_PMT = new G4LogicalVolume(solid_x_PMT, FusedSilica_mat, "X_PositivePMT_Window");
-  Xn_PMT = new G4LogicalVolume(solid_x_PMT, FusedSilica_mat, "X_NegativePMT_Window");
-  Yp_PMT = new G4LogicalVolume(solid_y_PMT, FusedSilica_mat, "Y_PositivePMT_Window");
-  Yn_PMT = new G4LogicalVolume(solid_y_PMT, FusedSilica_mat, "Y_NegativePMT_Window");
-
-  G4VPhysicalVolume* phys_Xp_window = new G4PVPlacement(0, G4ThreeVector(+0.5*(141 * mm + 2 * (WLS_FILM_WIDTH + PMMA_WIDTH+2*mm)+4*mm), 0, 0),
-	  Xp_PMT_window, "X_PositivePMT_window", envelope, false, 0, checkOverlaps);
-  G4VPhysicalVolume* phys_Xn_window = new G4PVPlacement(0, G4ThreeVector(-0.5*(141 * mm + 2 * (WLS_FILM_WIDTH + PMMA_WIDTH + 2 * mm) + 4 * mm), 0, 0),
-	  Xn_PMT_window, "X_NegativePMT_window", envelope, false, 0, checkOverlaps);
-  G4VPhysicalVolume* phys_Yp_window = new G4PVPlacement(0, G4ThreeVector(0, +0.5*(141 * mm + 2 * (WLS_FILM_WIDTH + PMMA_WIDTH + 2 * mm) + 4 * mm), 0),
-	  Yp_PMT_window, "Y_PositivePMT_window", envelope, false, 0, checkOverlaps);
-  G4VPhysicalVolume* phys_Yn_window = new G4PVPlacement(0, G4ThreeVector(0, -0.5*(141 * mm + 2 * (WLS_FILM_WIDTH + PMMA_WIDTH + 2 * mm) + 4 * mm), 0),
-	  Yn_PMT_window, "Y_NegativePMT_window", envelope, false, 0, checkOverlaps);
-
-   G4VPhysicalVolume* phys_Xp_PMT = new G4PVPlacement(0, G4ThreeVector(0, 0, 0),
-	  Xp_PMT, "X_PositivePMT", Xp_PMT_window, false, 0, checkOverlaps);
-  G4VPhysicalVolume* phys_Xn_PMT = new G4PVPlacement(0, G4ThreeVector(0, 0, 0),
-	  Xn_PMT, "X_NegativePMT", Xn_PMT_window, false, 0, checkOverlaps);
-  G4VPhysicalVolume* phys_Yp_PMT = new G4PVPlacement(0, G4ThreeVector(0, 0, 0),
-	  Yp_PMT, "Y_PositivePMT", Yp_PMT_window, false, 0, checkOverlaps);
-  G4VPhysicalVolume* phys_Yn_PMT = new G4PVPlacement(0, G4ThreeVector(0, 0, 0),
-	  Yn_PMT, "Y_NegativePMT", Yn_PMT_window, false, 0, checkOverlaps);
-
- #undef DET_OFFSET                     
+  G4VPhysicalVolume* phys_Xp_PMT = new G4PVPlacement(x_rot_m, G4ThreeVector(+0.5*(141 * mm + 2 * (WLS_FILM_WIDTH + PMMA_WIDTH + 2 * mm) + 4 * mm), 0, 0),
+	  Xp_PMT, "X_PositivePMT", envelope, false, 0, checkOverlaps);
+  G4VPhysicalVolume* phys_Xn_PMT = new G4PVPlacement(x_rot_m, G4ThreeVector(-0.5*(141 * mm + 2 * (WLS_FILM_WIDTH + PMMA_WIDTH + 2 * mm) + 4 * mm), 0, 0),
+	  Xn_PMT, "X_NegativePMT", envelope, false, 0, checkOverlaps);
+  G4VPhysicalVolume* phys_Yp_PMT = new G4PVPlacement(y_rot_m, G4ThreeVector(0, +0.5*(141 * mm + 2 * (WLS_FILM_WIDTH + PMMA_WIDTH + 2 * mm) + 4 * mm), 0),
+	  Yp_PMT, "Y_PositivePMT", envelope, false, 0, checkOverlaps);
+  G4VPhysicalVolume* phys_Yn_PMT = new G4PVPlacement(y_rot_m, G4ThreeVector(0, -0.5*(141 * mm + 2 * (WLS_FILM_WIDTH + PMMA_WIDTH + 2 * mm) + 4 * mm), 0),
+	  Yn_PMT, "Y_NegativePMT", envelope, false, 0, checkOverlaps);
+            
   G4OpticalSurface* top_plate_surface = new G4OpticalSurface("top_plate_surface");
-  G4LogicalBorderSurface* logical_top_plate_surface = new G4LogicalBorderSurface("top_plate_surface", phys_box_interior, phys_top_GEM, top_plate_surface);
+  G4LogicalBorderSurface* logical_top_plate_surface = new G4LogicalBorderSurface("top_plate_surface", phys_top_pseudo_GEM, phys_top_CU, top_plate_surface);
   _SetCopperSurface(top_plate_surface);
   G4OpticalSurface* bot_plate_surface0 = new G4OpticalSurface("bot_plate_surface0");
-  G4LogicalBorderSurface* logical_bot_plate_surface0 = new G4LogicalBorderSurface("bot_plate_surface0", phys_LAr_layer, phys_bot_GEM, bot_plate_surface0);
+  G4LogicalBorderSurface* logical_bot_plate_surface0 = new G4LogicalBorderSurface("bot_plate_surface0", phys_bot_pseudo_GEM, phys_bot_CU, bot_plate_surface0);
   _SetCopperSurface(bot_plate_surface0);
-  //G4OpticalSurface* bot_plate_surface1 = new G4OpticalSurface("bot_plate_surface1");
-  //G4LogicalBorderSurface* logical_bot_plate_surface1 = new G4LogicalBorderSurface("bot_plate_surface1", phys_box_interior, phys_bot_GEM, bot_plate_surface0);
-  //_SetCopperSurface(bot_plate_surface1);
+  G4OpticalSurface* top_plate_surface_r = new G4OpticalSurface("top_plate_real_surface");
+  G4LogicalBorderSurface* logical_top_real_plate_surface = new G4LogicalBorderSurface("top_plate_real_surface", phys_top_cell,
+	  phys_top_cell_container, top_plate_surface_r);
+  _SetCopperSurface(top_plate_surface_r);
+
   _SetVisibilityParameters();
 
   detector_volumes.push_back(Xp_PMT);
   detector_volumes.push_back(Xn_PMT);
   detector_volumes.push_back(Yp_PMT);
   detector_volumes.push_back(Yn_PMT);
-//#ifdef TEMP_CODE_
-//  detector_volumes.push_back(Xp_wls);
-//#endif
+#ifdef TOP_MESH_TEST
+  detector_volumes.push_back(top_mesh_test_detector);
+#endif
   
   absorbtion_volumes.push_back(world);
-  //absorbtion_volumes.push_back(top_plate);
-  //absorbtion_volumes.push_back(bot_plate);
+  absorbtion_volumes.push_back(top_cu_plate);
+  absorbtion_volumes.push_back(bot_cu_plate);
+  absorbtion_volumes.push_back(top_cell);
 
   //always return the physical World
+#undef plate_W
+#undef plate_real_W
   return physWorld;
 }
 
 void B1DetectorConstruction :: _SetVisibilityParameters(void)
 {
+	//=====PSUEDO GEMS
 	G4VisAttributes* temp = new G4VisAttributes(G4Color(0.5, 0.15, 0.15));
 	temp->SetVisibility(false);//TODO: true
-	top_plate->SetVisAttributes(temp);
+	top_cu_plate->SetVisAttributes(temp);
 	temp = new G4VisAttributes(G4Color(0.5, 0.15, 0.15));
 	temp->SetVisibility(true);
-	bot_plate->SetVisAttributes(temp);
-
-	temp = new G4VisAttributes(G4Color(0.15, 0.15, 0.7,0.3));
+	bot_cu_plate->SetVisAttributes(temp);
+	//=====PSEUDO GEMS
+	//=====CELLS
+	temp = new G4VisAttributes(G4Color(0.5, 0.15, 0.15));
+	temp->SetVisibility(true);
+	top_cell->SetVisAttributes(temp);
+	temp = new G4VisAttributes(G4Color(_light_blue_RGB,0.1));
+	temp->SetVisibility(false);
+	top_cell_hole->SetVisAttributes(temp);
+	//=====CELLS
+	//=====LAr
+	temp = new G4VisAttributes(G4Color(_light_blue_RGB,0.3));
 	temp->SetVisibility(true);
 	LAr_layer->SetVisAttributes(temp);
-	temp = new G4VisAttributes(G4Color(0.15, 0.15, 0.7,0.3));
+	temp = new G4VisAttributes(G4Color(_light_blue_RGB, 0.3));
 	temp->SetVisibility(true);
 	Xp_LAr_gap->SetVisAttributes(temp);
-	temp = new G4VisAttributes(G4Color(0.15, 0.15, 0.7,0.3));
+	temp = new G4VisAttributes(G4Color(_light_blue_RGB, 0.3));
 	temp->SetVisibility(true);
 	Xn_LAr_gap->SetVisAttributes(temp);
-	temp = new G4VisAttributes(G4Color(0.15, 0.15, 0.7,0.3));
+	temp = new G4VisAttributes(G4Color(_light_blue_RGB, 0.3));
 	temp->SetVisibility(true);
 	Yp_LAr_gap->SetVisAttributes(temp);
-	temp = new G4VisAttributes(G4Color(0.15, 0.15, 0.7,0.3));
+	temp = new G4VisAttributes(G4Color(_light_blue_RGB, 0.3));
 	temp->SetVisibility(true);
 	Yn_LAr_gap->SetVisAttributes(temp);
-
+	//======LAr
+	//======WSL
 	temp = new G4VisAttributes(G4Color(0.15, 0.6, 0.15));
 	temp->SetVisibility(true);
 	Xp_wls->SetVisAttributes(temp);
@@ -571,53 +705,47 @@ void B1DetectorConstruction :: _SetVisibilityParameters(void)
 	temp = new G4VisAttributes(G4Color(0.15, 0.6, 0.15));
 	temp->SetVisibility(true);
 	Yn_wls->SetVisAttributes(temp);
-
-	temp = new G4VisAttributes(G4Color(0.5, 0.2, 0.5));
+	//======WSL
+	//======ACRYLIC
+	temp = new G4VisAttributes(G4Color(0.7, 0.2, 0.7));
 	temp->SetVisibility(true);
 	Xp_acrylic->SetVisAttributes(temp);
-	temp = new G4VisAttributes(G4Color(0.5, 0.2, 0.5));
+	temp = new G4VisAttributes(G4Color(0.7, 0.2, 0.7));
 	temp->SetVisibility(true);
 	Xn_acrylic->SetVisAttributes(temp);
-	temp = new G4VisAttributes(G4Color(0.5, 0.2, 0.5));
+	temp = new G4VisAttributes(G4Color(0.7, 0.2, 0.7));
 	temp->SetVisibility(true);
 	Yp_acrylic->SetVisAttributes(temp);
-	temp = new G4VisAttributes(G4Color(0.5, 0.2, 0.5));
+	temp = new G4VisAttributes(G4Color(0.7, 0.2, 0.7));
 	temp->SetVisibility(true);
 	Yn_acrylic->SetVisAttributes(temp);
-
+	//======ACRYLIC
+	//======PMTS
 	temp = new G4VisAttributes(G4Color(0.7, 0.7, 0.7));
 	temp->SetVisibility(true);
+	temp->SetForceWireframe(true);
 	Xp_PMT->SetVisAttributes(temp);
 	temp = new G4VisAttributes(G4Color(0.7, 0.7, 0.7));
 	temp->SetVisibility(true);
+	temp->SetForceWireframe(true);
 	Xn_PMT->SetVisAttributes(temp);
 	temp = new G4VisAttributes(G4Color(0.7, 0.7, 0.7));
 	temp->SetVisibility(true);
+	temp->SetForceWireframe(true);
 	Yp_PMT->SetVisAttributes(temp);
 	temp = new G4VisAttributes(G4Color(0.7, 0.7, 0.7));
 	temp->SetVisibility(true);
+	temp->SetForceWireframe(true);
 	Yn_PMT->SetVisAttributes(temp);
 
-	temp = new G4VisAttributes(G4Color(0.7, 0, 0));
+#ifdef TOP_MESH_TEST
+	temp = new G4VisAttributes(G4Color(0.8, 0.6, 0.7));
 	temp->SetVisibility(true);
 	temp->SetForceWireframe(true);
-	Xp_PMT_window->SetVisAttributes(temp);
-
-	temp = new G4VisAttributes(G4Color(0.7, 0.7, 0.7));
-	temp->SetVisibility(true);
-	temp->SetForceWireframe(true);
-	Xn_PMT_window->SetVisAttributes(temp);
-
-	temp = new G4VisAttributes(G4Color(0.7, 0.7, 0.7));
-	temp->SetVisibility(true);
-	temp->SetForceWireframe(true);
-	Yp_PMT_window->SetVisAttributes(temp);
-
-	temp = new G4VisAttributes(G4Color(0.7, 0.7, 0.7));
-	temp->SetVisibility(true);
-	temp->SetForceWireframe(true);
-	Yn_PMT_window->SetVisAttributes(temp);
-
+	top_mesh_test_detector->SetVisAttributes(temp);
+#endif
+	//======PMTS
+	//======AUXILARY VOLUMES
 	temp = new G4VisAttributes(G4Color(0.7, 0.7, 0.7));
 	temp->SetVisibility(false);
 	envelope->SetVisAttributes(temp);
@@ -633,4 +761,5 @@ void B1DetectorConstruction :: _SetVisibilityParameters(void)
 	temp = new G4VisAttributes(G4Color(0.7, 0.7, 0.7));
 	temp->SetVisibility(false);
 	world->SetVisAttributes(temp);
+	//=======AUXILARY VOLUMES
 }

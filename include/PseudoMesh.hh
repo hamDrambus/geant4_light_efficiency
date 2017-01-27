@@ -33,7 +33,7 @@ public:
 	box_map_function* map_function;
 	PseudoMesh(G4LogicalVolume* parent, G4ThreeVector g_par_pos, G4double par_x, G4double par_y, G4double par_z,
 		G4LogicalVolume* cell, G4ThreeVector g_cell_pos, G4double cell_parameter, box_map_function* function);
-	void PostSpeppingAction(const G4Step* step); //checks entering/leaving, called from DetectorConstruction, manages everything
+	void PostSpeppingAction(const G4Step* step); //checks entering/leaving, called from UserSteppingAction, manages everything
 };
 
 #endif
