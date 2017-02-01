@@ -18,6 +18,7 @@
 #include "G4Scintillation.hh"
 #include "CustomWLSProcess.hh"
 #include "CustomOpBoundaryProcess.hh"
+#include "CustomMapProcess.hh"
 
 #include "G4LossTableManager.hh"
 #include "G4EmSaturation.hh"
@@ -39,17 +40,21 @@ void OpticPhysicsList::ConstructProcess()
 	AddTransportation();
 	CustomWLSProcess* wls_abs_process = new CustomWLSProcess();
 	CustomOpBoundaryProcess* boundaryProcess = new CustomOpBoundaryProcess();
+	CustomMapProcess* mapProcess = new CustomMapProcess();
 #ifdef DEBUG_MC_NODES
 	boundaryProcess->SetVerboseLevel(2);
 #else
 	boundaryProcess->SetVerboseLevel(0);
 #endif
 	theParticleIterator->reset();
-	while ((*theParticleIterator)()){
+	while ((*theParticleIterator)())
+	{
 		G4ParticleDefinition* particle = theParticleIterator->value();
 		G4ProcessManager* pmanager = particle->GetProcessManager();
 		G4String particleName = particle->GetParticleName();
-		if (particleName == "opticalphoton") {
+		pmanager->AddProcess(mapProcess,InActivated,ordDefault,ordDefault); //added for every particle
+		if (particleName == "opticalphoton") 
+		{
 			G4cout << " AddDiscreteProcesses to OpticalPhoton " << G4endl;
 			pmanager->AddDiscreteProcess(wls_abs_process);
 			pmanager->AddDiscreteProcess(boundaryProcess);

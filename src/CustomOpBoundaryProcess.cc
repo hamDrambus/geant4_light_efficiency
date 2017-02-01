@@ -131,7 +131,6 @@ CustomOpBoundaryProcess::PostStepDoIt(const G4Track& aTrack, const G4Step& aStep
                                          GetActiveNavigatorsIterator();
         theGlobalNormal =
                    (iNav[hNavId])->GetGlobalExitNormal(theGlobalPoint,&valid);
-
         if (valid) {
           theGlobalNormal = -theGlobalNormal;
         }

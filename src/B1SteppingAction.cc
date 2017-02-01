@@ -49,7 +49,6 @@ void B1SteppingAction::UserSteppingAction(const G4Step* step)
   }
   //WARNING! changed casting here
   B1DetectorConstruction* detectorConstruction = (B1DetectorConstruction*) (manman->GetUserDetectorConstruction());
-  detectorConstruction->top_GEM->PostSpeppingAction(step); //changes the positoin in a manner of "teleportation"
   G4double detect_prob = detectorConstruction->GetHitProbability(step->GetPostStepPoint());
   if (0 == detect_prob)
   {

@@ -53,7 +53,9 @@ int main(int argc,char** argv)
   // Initialize G4 kernel
   //
   runManager->Initialize();
+  /*runManager->BeamOn(runManager->x_num*runManager->y_num);*/
   runManager->BeamOn(1);
+  //TODO: check reemiss/noreemiss code
   G4double pb_total, pb_no_reemiss, pb_reemissed;
   runManager->get_total_detetion_eff(&pb_no_reemiss, &pb_reemissed, &pb_total);
   G4cout<<"total efficieency: "<<pb_total<<G4endl;
@@ -64,6 +66,9 @@ int main(int argc,char** argv)
   //(so that before every global run last_photon_event is allocated)
   G4cout << "total events proceded: " << (runManager->primary_Monte_Carlo->events.size()-1)+(runManager->extra_run_id) << G4endl;
   runManager->get_detected_spectrum();
+#ifdef TOP_MESH_TEST
+  runManager->export_to_bmp();
+#endif
 #ifdef G4VIS_USE
   // Initialize visualization
   G4VisManager* visManager = new G4VisExecutive;

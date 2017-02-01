@@ -315,9 +315,9 @@ G4int CustomRunManager::select_photon_BP(const G4Step* step, G4ThreeVector defl_
 		= static_cast<const B1DetectorConstruction*> (this->GetUserDetectorConstruction());
 	G4LogicalVolume* pre_volume=step->GetPreStepPoint()->GetTouchableHandle()->GetVolume()->GetLogicalVolume();
 	G4LogicalVolume* post_volume = step->GetPostStepPoint()->GetTouchableHandle()->GetVolume()->GetLogicalVolume();
-	if ((pre_volume == detC->box_interior) || (pre_volume==detC->LAr_layer))
+	if ((pre_volume == detC->bot_ps_plate) || (pre_volume == detC->top_ps_plate))
 	{
-		if ((post_volume != detC->bot_ps_plate) && (post_volume != detC->top_ps_plate))
+		if ((post_volume != detC->bot_cu_plate) && (post_volume != detC->top_cu_plate))
 			return RM_CHOOSE_DEFL;
 		else
 			return RM_CHOOSE_REFR;
@@ -345,6 +345,18 @@ G4ThreeVector CustomRunManager::GenPostion()
 #endif
 	if (current_working_node != NULL)
 		return current_working_node->GenPostion();
+#ifdef TOP_MESH_TEST
+	if (t_counter < x_num*y_num)
+	{
+		G4double x = x_start+t_step*((int)(t_counter / y_num));
+		G4double y = y_start + t_step*((int)(t_counter % y_num));
+		x += G4RandGauss::shoot(G4Random::getTheEngine(), 0.0, t_uncert);
+		y += G4RandGauss::shoot(G4Random::getTheEngine(),0.0,t_uncert);
+		t_counter++;
+		return G4ThreeVector(x, y, 0);
+	}
+	else return G4ThreeVector(0, 0, 0);
+#endif
 	return G4ThreeVector(0,0,0); //primary event parameters are such for a while
 }
 
@@ -355,9 +367,9 @@ G4ThreeVector CustomRunManager::GenMomentum()
 #endif
 	if (current_working_node != NULL)
 		return current_working_node->GenMomentum();
-//#ifdef TEMP_CODE_
-//	return G4ThreeVector(0, 1, 0); //primary event parameters are such for a while
-//#endif
+#ifdef TOP_MESH_TEST
+	return G4ThreeVector(0, 0, 1);
+#endif
 	G4double phi = CLHEP::twopi*G4UniformRand();
 	G4double cos_theta = 2*(G4UniformRand())-1;
 	return G4ThreeVector(sin(phi)*sqrt(1 - cos_theta*cos_theta), cos(phi)*sqrt(1 - cos_theta*cos_theta), cos_theta);
@@ -604,17 +616,19 @@ void CustomRunManager::get_detected_spectrum(std::string out_filename)
 }
 
 #ifdef TOP_MESH_TEST
+//!!WARNING - horizontal positioni of test detector is assumed
 void CustomRunManager::on_hit_proc(G4ThreeVector point, G4double prob) //called when test detector is hit with photon
 {
 	G4double net_prob = prob*get_curr_event_probab();
 	if (net_prob < 0) return;
-	hits_xs.push_back(point.x);
-	hits_ys.push_back(point.y);
+	hits_xs.push_back(point.x());
+	hits_ys.push_back(point.y());
 	hits_probs.push_back(net_prob);
 }
 
 void CustomRunManager::export_to_bmp() //first step is to map position of hits with arbitrary coordinates to bitmap. Then write to file 
 {
+	t_counter = 0; //nullifies history so "scan" can be done again
 	G4double * bits = new G4double[x_num*y_num];
 	G4double lx = t_step*x_num;
 	G4double ly = t_step*y_num;
@@ -623,26 +637,91 @@ void CustomRunManager::export_to_bmp() //first step is to map position of hits w
 		G4double x = hits_xs.back()-x_start;
 		G4double y = hits_ys.back()-y_start;
 		G4double prob = hits_probs.back();
-		G4int x_ind = (int)(x / lx);
-		G4int y_ind = (int)(y / ly);
-#define NUM_TO_CONSIDER 3
-		G4double neighbours[NUM_TO_CONSIDER*NUM_TO_CONSIDER];
-		//firstly - obtain squared lengths to the centers of bits in bmp, then exp distribution to the neighbours
-		for (G4int h = 0; h < NUM_TO_CONSIDER*NUM_TO_CONSIDER; h++)
-		{
-			G4int te_x_ind = (h / NUM_TO_CONSIDER) - 1;
-			G4int te_y_ind = h % NUM_TO_CONSIDER - 1;
-			neighbours[h] = (te_x_ind*t_step)*(te_x_ind*t_step) + (te_y_ind*t_step)*(te_y_ind*t_step);
-			neighbours[h] = exp(-(t_step*t_step)/neighbours[h]);
-		}
-
-#undef NUM_TO_CONSIDER
 		hits_xs.pop_back();
 		hits_ys.pop_back();
 		hits_probs.pop_back();
+		G4int x_ind = (int)(x / lx);
+		G4int y_ind = (int)(y / ly);
+#define NUM_TO_CONSIDER 3
+		//^should be odd
+		G4double neighbours[NUM_TO_CONSIDER*NUM_TO_CONSIDER];
+		//firstly - obtain squared lengths to the centers of bits in bmp, then exp distribution to the neighbours
+		//then - renormalization and writing to global double array
+		G4double sum=0;
+		for (G4int h = 0; h < NUM_TO_CONSIDER*NUM_TO_CONSIDER; h++)
+		{
+			G4int te_x_ind = (h / NUM_TO_CONSIDER) - NUM_TO_CONSIDER/2;
+			G4int te_y_ind = h % NUM_TO_CONSIDER - NUM_TO_CONSIDER / 2;
+			neighbours[h] = (te_x_ind*t_step)*(te_x_ind*t_step) + (te_y_ind*t_step)*(te_y_ind*t_step);
+			neighbours[h] = exp(-(t_step*t_step)/neighbours[h]);
+			if (((te_x_ind + x_ind) > 0) && ((te_x_ind + x_ind) < x_num) && ((te_y_ind + y_ind) > 0) && ((te_y_ind + y_ind) < y_num))
+				sum += neighbours[h];
+		}
+		if (0 == sum)
+		{
+			sum = prob / sum;
+			for (G4int h = 0; h < NUM_TO_CONSIDER*NUM_TO_CONSIDER; h++)
+			{
+				G4int te_x_ind = (h / NUM_TO_CONSIDER) - NUM_TO_CONSIDER / 2;
+				G4int te_y_ind = h % NUM_TO_CONSIDER - NUM_TO_CONSIDER / 2;
+				neighbours[h] *= sum;
+				if (((te_x_ind + x_ind) > 0) && ((te_x_ind + x_ind) < x_num) && ((te_y_ind + y_ind) > 0) && ((te_y_ind + y_ind) < y_num))
+					bits[(te_x_ind + x_ind)*y_num + (te_y_ind + y_ind)] += neighbours[h];
+			}
+		}
+#undef NUM_TO_CONSIDER
 	}
-
+	unsigned char *_bits = new unsigned char[x_num*y_num];
+	G4double max = -1;
+	for (int g = 0; g < x_num*y_num; g++)
+		if (max < bits[g]) max = bits[g];
+	for (int g = 0; g < x_num*y_num; g++)
+		_bits[g] = (bits[g] < 0 ? 0 : (int)(255*bits[g] / max));
 	delete[] bits;
+	//WORK WITH BMP
+	unsigned int headers[13];
+	G4int extra_bytes = (4 - ((x_num * 3 )% 4))%4;
+	int paddle_size = (x_num * 3 + extra_bytes)*y_num;
+	headers[0] = paddle_size + 54;
+	headers[1] = 0;
+	headers[2] = 54;
+	headers[3] = 40;
+	headers[4] = x_num;  
+	headers[5] = y_num;
+	headers[7] = 0;
+	headers[8] = paddle_size;
+	headers[9] = 0;
+	headers[10] = 0;
+	headers[11] = 0;
+	headers[12] = 0;
+	std::ofstream bmp;
+	bmp.open("top_mesh_test.bmp",std::ios_base::trunc|std::ios_base::binary);
+	bmp << "BM";
+	for (G4int h = 0; h <= 5; h++)
+	{
+		bmp << (char)(headers[h] & 0x000000ff);
+		bmp << (char)((headers[h] & 0x0000ff00)>>8);
+		bmp << (char)((headers[h] & 0x00ff0000)>>16);
+		bmp << (char)((headers[h] & (unsigned int) 0xff000000)>>24);
+	}
+	bmp << (char)1 << (char)0 << (char)24 << (char)0;
+	for (G4int h = 7; h <= 12; h++)
+	{
+		bmp << (char)(headers[h] & 0x000000ff);
+		bmp << (char)((headers[h] & 0x0000ff00) >> 8);
+		bmp << (char)((headers[h] & 0x00ff0000) >> 16);
+		bmp << (char)((headers[h] & (unsigned int)0xff000000) >> 24);
+	}
+	for (G4int h = 0; h < y_num;h++)
+	{
+		for (G4int g = 0; g < x_num; g++)
+			bmp << _bits[h] << _bits[h] << _bits[h];
+		for (int g = 0; g < extra_bytes; g++)
+			bmp << (char)0;
+	}
+	bmp.close();
+	//END BMP OUTPUT
+	delete[] _bits;
 }
 #endif
 

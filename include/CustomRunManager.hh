@@ -1,7 +1,7 @@
 #ifndef CustomRunManager_h
 #define CustomRunManager_h 1
 
-//#define DEBUG_MC_NODES
+#define DEBUG_MC_NODES
 #define TOP_MESH_TEST
 //^if defined, then additional detector box is created above the topmost pseudo GEM (but below cell volume), 
 //and photon posistions upon the hit the are written in bmp. Also photons are generated orthogonally to the plate in order to 'scan' it. 
@@ -68,12 +68,17 @@ public:
 	photon_event* last_event; //current working event - for convinience
 	
 	G4int spawn_new_MC_node(const G4Step* step, G4double prob, G4ThreeVector momentum, G4ThreeVector polarization, G4int num_of_sims = 1);
-	G4int spawn_new_MC_node(const G4Step* step, G4double prob, G4Material *WSL_pars, G4int num_of_sims = 150); //or just abs_length?
+#ifdef TOP_MESH_TEST
+	G4int spawn_new_MC_node(const G4Step* step, G4double prob, G4Material *WSL_pars, G4int num_of_sims =0);
+#else
+	G4int spawn_new_MC_node(const G4Step* step, G4double prob, G4Material *WSL_pars, G4int num_of_sims = 150);
+#endif
 #ifdef TOP_MESH_TEST
 	std::list<G4double> hits_xs, hits_ys, hits_probs;
 	G4int x_num, y_num; //discretisation parameters (same as size of bmp)
 	G4double x_start, y_start;
 	G4double t_step, t_uncert;
+	G4int t_counter;
 	void on_hit_proc(G4ThreeVector point,G4double prob); //called when test detector is hit with photon
 	void export_to_bmp();
 #endif
@@ -109,10 +114,11 @@ public:
 #ifdef TOP_MESH_TEST
 		x_num = 1200;
 		y_num = 900;
-		x_start = -141 * mm / 2;
-		y_start = -141 * mm / 2;
+		x_start = -60 * mm / 2;
+		y_start = -60 * mm / 2;
 		t_step = 0.05*mm;
 		t_uncert = 0.005*mm;
+		t_counter = 0;
 #endif
 	};
 	~CustomRunManager(){if (primary_Monte_Carlo) delete primary_Monte_Carlo;};
