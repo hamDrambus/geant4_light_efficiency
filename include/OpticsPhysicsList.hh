@@ -6,6 +6,7 @@
 class OpticPhysicsList : public G4VUserPhysicsList
 {
 public:
+	void AddCustomTransportation(void);
 	OpticPhysicsList();
 	virtual ~OpticPhysicsList();
 	virtual void ConstructParticle();

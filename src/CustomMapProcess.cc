@@ -68,9 +68,11 @@ G4VParticleChange* CustomMapProcess::AlongStepDoIt(const G4Track& track,
 	Deb = fLinearNavigator->GetGlobalExitNormal(Deb, &valid);
 	valid = valid;
 #endif
+	fCurrentTouchableHandle = track.GetTouchableHandle();
 	fLinearNavigator->LocateGlobalPointAndUpdateTouchableHandle(stepData.GetPostStepPoint()->GetPosition(),
 		track.GetMomentumDirection(), fCurrentTouchableHandle, true); //obtains real poststep touchable
 #ifdef TEMP_CODE_
+	G4VPhysicalVolume* temp_pp_ = fCurrentTouchableHandle->GetVolume();
 	Deb = stepData.GetPostStepPoint()->GetPosition();
 	Deb =fLinearNavigator->GetGlobalExitNormal(Deb, &valid);
 	valid = valid;
@@ -85,7 +87,18 @@ G4VParticleChange* CustomMapProcess::AlongStepDoIt(const G4Track& track,
 		(stepData.GetPostStepPoint()->GetPosition()-stepData.GetPreStepPoint()->GetPosition())); 
 	//^may be the same. The subtraction is required in order to compesate for change in transport. (otherwise transport shift is doubling
 	//because position changes in AlongStepDoIt are additive (see SteppingManager entrails))
-	//  Code for specific process
+	G4VPhysicalVolume* temp_p = fLinearNavigator->LocateGlobalPointAndSetup(stepData.GetPreStepPoint()->GetPosition(), &track.GetMomentumDirection());
+	fCurrentTouchableHandle = fLinearNavigator->CreateTouchableHistory();
+	if (0 == temp_p) //something is not ok. TODO: this scenario should be tested.
+		fCurrentTouchableHandle->UpdateYourself(temp_p);
+	//fLinearNavigator->SetGeometricallyLimitedStep();
+	//fLinearNavigator->LocateGlobalPointAndUpdateTouchableHandle(stepData.GetPostStepPoint()->GetPosition(),
+	//	-track.GetMomentumDirection(), fCurrentTouchableHandle, true); //tricking navigator to initial state?
+#ifdef TEMP_CODE_
+	Deb = stepData.GetPostStepPoint()->GetPosition();
+	Deb = fLinearNavigator->GetGlobalExitNormal(Deb, &valid);
+	valid = valid;
+#endif
 	if ((fTransportEndPosition - stepData.GetPostStepPoint()->GetPosition()).r() > 0.0)
 		isMapped = 1;
 	else isMapped = 0;
@@ -105,6 +118,12 @@ G4VParticleChange* CustomMapProcess::PostStepDoIt(const G4Track& track, const G4
 	G4TouchableHandle retCurrentTouchable;
 	retCurrentTouchable = fCurrentTouchableHandle; //set in AlongStepDoIt to track's value
 	fParticleChange.ProposeTrackStatus(track.GetTrackStatus());
+#ifdef TEMP_CODE_
+	G4bool valid = false;
+	G4ThreeVector Deb = fTransportEndPosition;
+	Deb = fLinearNavigator->GetGlobalExitNormal(Deb, &valid);
+	valid = valid;
+#endif
 	if (isMapped) // If mapping has ocurred logically relocate the particle
 	{
 		//depr: fLinearNavigator->LocateGlobalPointAndUpdateTouchableHandle(fTransportEndPosition,track.GetMomentumDirection(),
@@ -119,13 +138,18 @@ G4VParticleChange* CustomMapProcess::PostStepDoIt(const G4Track& track, const G4
 		CustomRunManager* manman = (CustomRunManager*)(G4RunManager::GetRunManager());
 		B1DetectorConstruction* detectorConstruction = (B1DetectorConstruction*)(manman->GetUserDetectorConstruction());
 		G4double shift = detectorConstruction->GetSafeOffset();
+		fLinearNavigator->SetGeometricallyLimitedStep();
 		G4VPhysicalVolume* temp_p = fLinearNavigator->LocateGlobalPointAndSetup(fTransportEndPosition - shift*(track.GetMomentumDirection()),
 			&-(track.GetMomentumDirection()), true);
 		//^first geeting 'from' touchable hence -track...
 		fCurrentTouchableHandle = fLinearNavigator->CreateTouchableHistory();
+#ifdef TEMP_CODE_
+		G4VPhysicalVolume* temp_pp_ =fCurrentTouchableHandle->GetVolume();
+#endif
 		if (0 == temp_p) //something is not ok. TODO: this scenario should be tested.
 		{
 			fCurrentTouchableHandle->UpdateYourself(temp_p);
+			fLinearNavigator->SetGeometricallyLimitedStep();
 			G4VPhysicalVolume* temp_p = fLinearNavigator->LocateGlobalPointAndSetup(fTransportEndPosition, &(track.GetMomentumDirection()), true);
 			fCurrentTouchableHandle = fLinearNavigator->CreateTouchableHistory();
 			if (0 == temp_p) //something is not ok. TODO: this scenario should be tested.
@@ -134,6 +158,9 @@ G4VParticleChange* CustomMapProcess::PostStepDoIt(const G4Track& track, const G4
 		else
 			fLinearNavigator->LocateGlobalPointAndUpdateTouchableHandle(fTransportEndPosition, track.GetMomentumDirection(),
 			fCurrentTouchableHandle, true);
+#ifdef TEMP_CODE_
+		temp_pp_ = fCurrentTouchableHandle->GetVolume();
+#endif
 		if (fCurrentTouchableHandle == 0) // Check whether the particle is out of the world volume
 		{
 			fParticleChange.ProposeTrackStatus(fStopAndKill);
@@ -153,8 +180,7 @@ G4VParticleChange* CustomMapProcess::PostStepDoIt(const G4Track& track, const G4
 		retCurrentTouchable = fCurrentTouchableHandle;
 	}
 #ifdef TEMP_CODE_
-	G4bool valid = false;
-	G4ThreeVector Deb = fTransportEndPosition;
+	Deb = fTransportEndPosition;
 	Deb = fLinearNavigator->GetGlobalExitNormal(Deb, &valid);
 	valid = valid;
 #endif
