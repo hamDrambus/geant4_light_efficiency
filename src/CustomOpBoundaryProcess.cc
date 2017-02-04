@@ -136,7 +136,11 @@ CustomOpBoundaryProcess::PostStepDoIt(const G4Track& aTrack, const G4Step& aStep
         }
         else 
         {
-          G4ExceptionDescription ed;
+#ifdef TEMP_CODE_
+			CustomRunManager* manman = (CustomRunManager*)(G4RunManager::GetRunManager());
+			B1DetectorConstruction* detectorConstruction = (B1DetectorConstruction*)(manman->GetUserDetectorConstruction());
+#endif
+		  G4ExceptionDescription ed;
           ed << " G4OpBoundaryProcess/PostStepDoIt(): "
                  << " The Navigator reports that it returned an invalid normal"
                  << G4endl;
@@ -693,7 +697,7 @@ void CustomOpBoundaryProcess::DielectricMetal(const G4Step* aStep)
 		manman->SetPhEvType(RM_PHOTON_NO_TRACK);
 		manman->process_end(aStep);
 	}
-	if ((RM_CHOOSE_REFR == chosen_proc) || (RM_CHOOSE_BOTH == chosen_proc))
+	if ((RM_CHOOSE_REFL == chosen_proc) || (RM_CHOOSE_BOTH == chosen_proc))
 	{
 		manman->SetPhEvProb(net_refl_prob);
 		manman->SetPhEvType(RM_PHOTON_REFL);
@@ -885,7 +889,7 @@ void CustomOpBoundaryProcess::DielectricDielectric(const G4Step* aStep)
 			  CustomRunManager* manman = (CustomRunManager*)G4RunManager::GetRunManager();
 			  manman->SetPhEvType(RM_PHOTON_TOT_REFL);
 			  G4int chosen_proc = manman->select_photon_BP(to_decider_, G4ThreeVector(0, 0, 0), NewMomentum);
-			  if ((chosen_proc == RM_CHOOSE_BOTH) || (chosen_proc == RM_CHOOSE_REFR))
+			  if ((chosen_proc == RM_CHOOSE_BOTH) || (chosen_proc == RM_CHOOSE_REFL))
 				  manman->SetPhEvProb(1); //TODO: set to 1, as must be (or make depending on chosen_proc)
 			  else manman->SetPhEvProb(0); //effectively kills the event
 			  manman->process_end(aStep);
@@ -1053,7 +1057,7 @@ void CustomOpBoundaryProcess::DielectricDielectric(const G4Step* aStep)
 			   NewPolarization = Defl_polar;
 			   break;
 		   }
-		   case RM_CHOOSE_REFR:
+		   case RM_CHOOSE_REFL:
 		   {
 			   if (Swap) Swap = !Swap;
 			   manman->SetPhEvProb(1.0 - transmittance_);

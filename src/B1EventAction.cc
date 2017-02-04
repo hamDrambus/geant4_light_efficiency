@@ -13,8 +13,11 @@ B1EventAction::B1EventAction()
 B1EventAction::~B1EventAction()
 {}
 
-void B1EventAction::BeginOfEventAction(const G4Event*)
-{    
+void B1EventAction::BeginOfEventAction(const G4Event* event)
+{   
+	/* depr - called after generate primaries: CustomRunManager* manman = (CustomRunManager*)(G4RunManager::GetRunManager());
+	manman->OnEventStartProc(event);*/ //sets pesudoMeshes properly (depending on starting position of photon)
+	//and generates new Gun's parameters
 	fEdep = 0.;
 }
 

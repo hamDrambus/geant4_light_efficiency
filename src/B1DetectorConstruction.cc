@@ -453,6 +453,7 @@ G4Material* B1DetectorConstruction::_fr4_mat(void)
 	G4double rindexes[10] = { 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5};
 	//^most taken at room temperature: error is about 1e-3
 	prop_table->AddProperty("RINDEX", energies, rindexes, 10);
+	_fr4->SetMaterialPropertiesTable(prop_table);
 	return _fr4;
 }
 
@@ -527,13 +528,16 @@ G4VPhysicalVolume* B1DetectorConstruction::Construct()
 	  "BotPseudoGEM", box_interior, false, 0, checkOverlaps);
   G4VPhysicalVolume* phys_LAr_layer = new G4PVPlacement(0, G4ThreeVector(0, 0, -0.5*(18)*mm), LAr_layer, "LArLayer", box_interior,
 	  false, 0, checkOverlaps);
+#ifndef TEMP_CODE_
   G4VPhysicalVolume* phys_top_CU = new G4PVPlacement(0, G4ThreeVector(0, 0, 0), top_cu_plate, //placed in above pseudo volumes
 	  "TopCU", top_ps_plate, false, 0, checkOverlaps);
+#endif
+
   G4VPhysicalVolume* phys_bot_CU = new G4PVPlacement(0, G4ThreeVector(0, 0, 0), bot_cu_plate,
 	  "BotCU", bot_ps_plate, false, 0, checkOverlaps);
 	//================================ CELLs
-#define CELL_SIZE 0.45
-#define CELL_HOLE_DIAM 0.5
+#define CELL_SIZE 4.5
+#define CELL_HOLE_DIAM 5
 #define CELL_RIM_W 0.1
   G4double r_[2] = { 2*CELL_SIZE/sqrt(3) + 0.1, 2*CELL_SIZE/sqrt(3) + 0.1 };
   G4double z_[2] = { -plate_W / 2, plate_W/2 };
@@ -556,7 +560,7 @@ G4VPhysicalVolume* B1DetectorConstruction::Construct()
   G4VPhysicalVolume* phys_top_cell_hole = new G4PVPlacement(0, G4ThreeVector(0, 0, 0), top_cell_hole,
 	  "TopCellHole", top_cell, false, 0, checkOverlaps);
   top_GEM = new PseudoMesh(top_ps_plate, G4ThreeVector(0, 0, 0.5*(18 + 4 + plate_W)*mm), 141 * mm, 141 * mm, plate_W,
-	  top_cell_container, G4ThreeVector(0, 0, 0.5*(18 + 4 + plate_W + 15)*mm), CELL_SIZE / 2, (box_map_function)(&hexagonal_mapping));
+	  top_cell_container, G4ThreeVector(0, 0, 0.5*(18 + 4 + plate_W + 15)*mm), CELL_SIZE/*, (box_map_function)(&hexagonal_mapping)*/);
 	//================================
 #ifdef TOP_MESH_TEST
   G4Box* solid_top_mesh_test_detector = new G4Box("Top_mesh_test_detector", 0.5*(141 * mm), 0.5*(141 * mm), 0.5 *(plate_real_W*mm));
@@ -631,9 +635,11 @@ G4VPhysicalVolume* B1DetectorConstruction::Construct()
   G4VPhysicalVolume* phys_Yn_PMT = new G4PVPlacement(y_rot_m, G4ThreeVector(0, -0.5*(141 * mm + 2 * (WLS_FILM_WIDTH + PMMA_WIDTH + 2 * mm) + 4 * mm), 0),
 	  Yn_PMT, "Y_NegativePMT", envelope, false, 0, checkOverlaps);
             
+#ifndef TEMP_CODE_
   G4OpticalSurface* top_plate_surface = new G4OpticalSurface("top_plate_surface");
   G4LogicalBorderSurface* logical_top_plate_surface = new G4LogicalBorderSurface("top_plate_surface", phys_top_pseudo_GEM, phys_top_CU, top_plate_surface);
   _SetCopperSurface(top_plate_surface);
+#endif
   G4OpticalSurface* bot_plate_surface0 = new G4OpticalSurface("bot_plate_surface0");
   G4LogicalBorderSurface* logical_bot_plate_surface0 = new G4LogicalBorderSurface("bot_plate_surface0", phys_bot_pseudo_GEM, phys_bot_CU, bot_plate_surface0);
   _SetCopperSurface(bot_plate_surface0);
@@ -676,7 +682,7 @@ void B1DetectorConstruction :: _SetVisibilityParameters(void)
 	//=====PSEUDO GEMS
 	//=====CELLS
 	temp = new G4VisAttributes(G4Color(0.5, 0.15, 0.15));
-	temp->SetVisibility(false);
+	temp->SetVisibility(true);
 	top_cell->SetVisAttributes(temp);
 	temp = new G4VisAttributes(G4Color(_light_blue_RGB));
 	temp->SetVisibility(true);
@@ -780,4 +786,19 @@ void B1DetectorConstruction :: _SetVisibilityParameters(void)
 	temp->SetVisibility(false);
 	bot_ps_plate->SetVisAttributes(temp);
 	//=======AUXILARY VOLUMES
+}
+
+void B1DetectorConstruction::OnEventStartProc(CustomRunManager* manman)
+{
+	
+}
+
+G4ThreeVector B1DetectorConstruction::MappingProc(PseudoMeshData *psm_data, const G4Track& track,
+	const G4Step& aStep, G4TouchableHandle &fCurrentTouchableHandle)
+{
+	if (psm_data->curr_mesh == top_GEM)
+		return top_GEM->PostSteppingAction(psm_data, track, aStep, fCurrentTouchableHandle);
+	if (psm_data->curr_mesh == NULL)
+		return top_GEM->PostSteppingAction(psm_data, track, aStep, fCurrentTouchableHandle);
+	return aStep.GetPostStepPoint()->GetPosition();
 }

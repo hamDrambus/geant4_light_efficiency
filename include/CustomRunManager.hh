@@ -1,7 +1,7 @@
 #ifndef CustomRunManager_h
 #define CustomRunManager_h 1
 
-#define DEBUG_MC_NODES
+//#define DEBUG_MC_NODES
 #define TOP_MESH_TEST
 //^if defined, then additional detector box is created above the topmost pseudo GEM (but below cell volume), 
 //and photon posistions upon the hit the are written in bmp. Also photons are generated orthogonally to the plate in order to 'scan' it. 
@@ -19,6 +19,7 @@
 
 #include "G4RunManager.hh"
 #include "G4SystemOfUnits.hh"
+#include "PseudoMesh.hh"
 #include "B1DetectorConstruction.hh"
 #include <list>
 
@@ -32,7 +33,7 @@
 #define RM_PHOTON_UNDEFINED	-2
 #define RM_CHOOSE_KILL	0
 #define RM_CHOOSE_DEFL	1
-#define RM_CHOOSE_REFR	2	
+#define RM_CHOOSE_REFL	2	
 #define RM_CHOOSE_BOTH	3
 #include "MC_Node.hh"
 
@@ -49,10 +50,27 @@ class MC_node;
 class photon_event;
 class one_sim_data;
 class net_sim_data;
+class PseudoMeshData;
+
+//TODO: this class is becoming too complex and complicated thus is should be split
+//Current mandates:
+//	0) photon with statistical weights (probabilities) managment
+//	1) Setting particle gun parameter accordingly to simulatoion state (MC's nodes managment)
+//	2) Storing current simulation state (curr_photon_event, curr probability and so on)
+//	3) Interface for modifying sim. state and updating current state accordingly
+//	4) Storing mapping state and transitional functiion for work with it (being called from process,
+//	call detector construction's methods)
+//	5) Analisis of simulation
+// issue: fuctions for primary simulation MC node are somewhat duplicated from MC_node class
 
 class CustomRunManager:public G4RunManager
 {
-private:
+protected:
+	G4ThreeVector initial_position;
+	G4ThreeVector initial_momentum_direction;
+	G4ThreeVector initial_polarization;
+	G4double initial_energy;
+
 	G4double curr_ph_ev_prob;
 	G4double curr_ph_ev_type;
 	G4int has_finished_secondaries;
@@ -66,6 +84,8 @@ public:
 	
 	MC_node* current_working_node; //there secondary generation info is stored too
 	photon_event* last_event; //current working event - for convinience
+	PseudoMeshData* curr_mapping_state; //set from PreEventProcedure either based on primary photon posions or
+	//mapping state of MC_Node
 	
 	G4int spawn_new_MC_node(const G4Step* step, G4double prob, G4ThreeVector momentum, G4ThreeVector polarization, G4int num_of_sims = 1);
 #ifdef TOP_MESH_TEST
@@ -108,20 +128,25 @@ public:
 	void SetHit(G4bool is_hit=true);
 	G4double get_total_detetion_eff(void);
 	void get_total_detetion_eff(G4double* no_reemiss, G4double *reemissed, G4double* total);
-	CustomRunManager() :G4RunManager(),  extra_run_id(1), curr_ph_ev_prob(RM_PHOTON_UNDEFINED), curr_ph_ev_type(1),
+	CustomRunManager() :G4RunManager(), extra_run_id(1), curr_ph_ev_prob(1), curr_ph_ev_type(RM_PHOTON_UNDEFINED),
 		has_finished_secondaries(1), current_working_node(NULL), last_event(NULL), primary_Monte_Carlo(NULL) 
 	{
+		curr_mapping_state = new PseudoMeshData;
 #ifdef TOP_MESH_TEST
 		x_num = 1200;
 		y_num = 900;
-		x_start = -60 * mm / 2;
-		y_start = -60 * mm / 2;
-		t_step = 0.05*mm;
-		t_uncert = 0.005*mm;
+		x_start = -138 * mm / 2;
+		y_start = -141 * mm / 2;
+		t_step = 0.1*mm;
+		t_uncert = 0.05*mm;
 		t_counter = 0;
 #endif
 	};
-	~CustomRunManager(){if (primary_Monte_Carlo) delete primary_Monte_Carlo;};
+	~CustomRunManager()
+	{
+		if (primary_Monte_Carlo) delete primary_Monte_Carlo;
+		if (curr_mapping_state) delete curr_mapping_state;
+	};
 	//depr - went to init_event //virtual void Initialize(); //clear MC_nodes and create parent one, clear all previous sim data
 	//deleting last MC_nodes and sim data - in destructor!
 
@@ -129,10 +154,19 @@ public:
 	//selects what process should be tracked further (called in OpticsBoundaryProcess)
 	virtual G4int select_photon_BP(const G4Step* step, G4ThreeVector defl_momentum, G4ThreeVector refl_momentum); 
 	//0 - kill process, 1 - select reflection, 2 - select difraction, 3 - select both
-	G4ThreeVector	GenPostion();
+	G4ThreeVector	GenPosition(); //Gen called only at the start of event
 	G4ThreeVector	GenMomentum();
 	G4ThreeVector	GenPolarization();
 	G4double		GenEnergy();
+
+	G4ThreeVector	FetchPosition();
+	G4ThreeVector	FetchMomentum();
+	G4ThreeVector	FetchPolarization();
+	G4double		FetchEnergy();
+
+	void OnEventStartProc();
+	virtual void ProcessOneEvent(G4int i_event); //added OnEventStartProc call here
+	//^ for setting parameters before call of GeneratePrimaries (EventAction doesn't fit this purpose)
 
 	G4double get_new_spawn_prob();//called in spawn_new_MC_node and prevents the tree from being too deep
 	//aborts spawnig if probability of a new node is less than MIN_ALLOWED_PROBABILITY
@@ -143,6 +177,8 @@ public:
 	void get_detected_spectrum(std::string out_filename = "WLS_spectrum_test.txt");
 	//recursive function below
 	void get_detected_spectrum(G4double reach_node_prob, MC_node* node, std::list<G4double> *energies, std::list < G4double> *probabilities);
+
+	G4ThreeVector MappingProc(const G4Track& track, const G4Step& aStep, G4TouchableHandle &fCurrentTouchableHandle);
 };
 
 #endif

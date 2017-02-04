@@ -8,7 +8,7 @@
 #include "G4PropagatorInField.hh"
 #include "G4Track.hh"
 #include "G4Step.hh"
-#include "G4ParticleChangeForTransport.hh"
+#include "CustomParticleChangeForTransport.hh"
 #include "CustomRunManager.hh"
 
 class G4SafetyHelper;
@@ -89,7 +89,7 @@ private:
 	G4double       fPreviousSafety;
 	// Remember last safety origin & value.
 
-	G4ParticleChangeForTransport fParticleChange;
+	CustomParticleChangeForTransport fParticleChange;
 	// New ParticleChange
 
 	G4double fEndPointDistance;

@@ -2,16 +2,18 @@
 #define B1DetectorConstruction_h 1
 
 #include "globals.hh"
-#include "CustomRunManager.hh"
 #include "G4VUserDetectorConstruction.hh"
 #include "G4OpticalSurface.hh"
 #include "G4LogicalBorderSurface.hh"
 #include "PseudoMesh.hh"
+#include "CustomRunManager.hh"
 #include <list>
 
 class G4VPhysicalVolume;
 class G4LogicalVolume;
 class PseudoMesh;
+class PseudoMeshData;
+class CustomRunManager;
 
 /// Detector construction class to define materials and geometry.
 
@@ -41,9 +43,12 @@ private:
 	void _SetCopperSurface(G4OpticalSurface* surface);
 	void _SetVisibilityParameters(void);
 public:
-	G4double GetSafeOffset(void); 
+	G4double GetSafeOffset(void);
 	//returns small length which can be taken from volume boundary and be guaranteed to lead to a neighbour one.
 	//e.g. auxilary volumes are always have offset of 0.5-1 mm from thier content 
+	void OnEventStartProc(CustomRunManager* manman);
+	G4ThreeVector MappingProc(PseudoMeshData *psm_data, const G4Track& track, 
+		const G4Step& aStep, G4TouchableHandle &fCurrentTouchableHandle);
 
 	G4LogicalVolume* top_ps_plate; //gem, but at the moment is just a solid plate
 	G4LogicalVolume* bot_ps_plate;

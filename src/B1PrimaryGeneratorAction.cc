@@ -36,9 +36,9 @@ B1PrimaryGeneratorAction::~B1PrimaryGeneratorAction()
 void B1PrimaryGeneratorAction::GeneratePrimaries(G4Event* anEvent)
 {
   CustomRunManager* manman = (CustomRunManager*)G4RunManager::GetRunManager();
-  fParticleGun->SetParticlePosition(manman->GenPostion());
-  fParticleGun->SetParticleMomentumDirection(manman->GenMomentum());
-  fParticleGun->SetParticlePolarization(manman->GenPolarization());
-  fParticleGun->SetParticleEnergy(manman->GenEnergy());
+  fParticleGun->SetParticlePosition(manman->FetchPosition());
+  fParticleGun->SetParticleMomentumDirection(manman->FetchMomentum());
+  fParticleGun->SetParticlePolarization(manman->FetchPolarization());
+  fParticleGun->SetParticleEnergy(manman->FetchEnergy());
   fParticleGun->GeneratePrimaryVertex(anEvent);
 }

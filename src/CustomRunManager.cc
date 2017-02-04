@@ -1,4 +1,11 @@
 #include "CustomRunManager.hh"
+#include "G4UImanager.hh"
+
+void CustomRunManager::ProcessOneEvent(G4int i_event)
+{
+	OnEventStartProc();
+	G4RunManager::ProcessOneEvent(i_event);
+}
 
 void CustomRunManager::DoEventLoop(G4int n_event,const char* macroFile,G4int n_select)
 {
@@ -320,12 +327,12 @@ G4int CustomRunManager::select_photon_BP(const G4Step* step, G4ThreeVector defl_
 		if ((post_volume != detC->bot_cu_plate) && (post_volume != detC->top_cu_plate))
 			return RM_CHOOSE_DEFL;
 		else
-			return RM_CHOOSE_REFR;
+			return RM_CHOOSE_REFL;
 	}
 	if (((pre_volume == detC->top_cell_hole) || (pre_volume == detC->top_cell_container)))
 	{
 		if (post_volume==detC->top_cell)
-			return RM_CHOOSE_REFR;
+			return RM_CHOOSE_REFL;
 	}
 	//if (pre_volume == detC->mid_top)
 	//{
@@ -338,13 +345,16 @@ G4int CustomRunManager::select_photon_BP(const G4Step* step, G4ThreeVector defl_
 	return RM_CHOOSE_BOTH; //W! too much treeing
 }
 
-G4ThreeVector CustomRunManager::GenPostion()
+G4ThreeVector CustomRunManager::FetchPosition()
+{return initial_position;}
+
+G4ThreeVector CustomRunManager::GenPosition()
 {
 #ifdef DEBUG_MC_NODES
 	//G4cout << "" << G4endl;
 #endif
 	if (current_working_node != NULL)
-		return current_working_node->GenPostion();
+		return initial_position = current_working_node->GenPostion();
 #ifdef TOP_MESH_TEST
 	if (t_counter < x_num*y_num)
 	{
@@ -352,13 +362,17 @@ G4ThreeVector CustomRunManager::GenPostion()
 		G4double y = y_start + t_step*((int)(t_counter % y_num));
 		x += G4RandGauss::shoot(G4Random::getTheEngine(), 0.0, t_uncert);
 		y += G4RandGauss::shoot(G4Random::getTheEngine(),0.0,t_uncert);
-		t_counter++;
-		return G4ThreeVector(x, y, 0);
+		t_counter++;	
+		return initial_position = G4ThreeVector(x, y, 0);
 	}
-	else return G4ThreeVector(0, 0, 0);
+	else
+		return initial_position = G4ThreeVector(0, 0, 0);
 #endif
-	return G4ThreeVector(0,0,0); //primary event parameters are such for a while
+	return initial_position = G4ThreeVector(0, 0, 0); //primary event parameters are such for a while
 }
+
+G4ThreeVector CustomRunManager::FetchMomentum()
+{return initial_momentum_direction;}
 
 G4ThreeVector CustomRunManager::GenMomentum()
 {
@@ -366,14 +380,17 @@ G4ThreeVector CustomRunManager::GenMomentum()
 	//G4cout << "" << G4endl;
 #endif
 	if (current_working_node != NULL)
-		return current_working_node->GenMomentum();
+		return initial_polarization = current_working_node->GenMomentum();
 #ifdef TOP_MESH_TEST
-	return G4ThreeVector(0, 0, 1);
+	return initial_momentum_direction = G4ThreeVector(0, 0, 1);
 #endif
 	G4double phi = CLHEP::twopi*G4UniformRand();
 	G4double cos_theta = 2*(G4UniformRand())-1;
-	return G4ThreeVector(sin(phi)*sqrt(1 - cos_theta*cos_theta), cos(phi)*sqrt(1 - cos_theta*cos_theta), cos_theta);
+	return initial_momentum_direction = G4ThreeVector(sin(phi)*sqrt(1 - cos_theta*cos_theta), cos(phi)*sqrt(1 - cos_theta*cos_theta), cos_theta);
 }
+
+G4ThreeVector CustomRunManager::FetchPolarization()
+{return initial_polarization;}
 
 G4ThreeVector CustomRunManager::GenPolarization()
 {
@@ -381,11 +398,14 @@ G4ThreeVector CustomRunManager::GenPolarization()
 	//G4cout << "" << G4endl;
 #endif
 	if (current_working_node != NULL)
-		return current_working_node->GenPolarization();
+		return initial_polarization = current_working_node->GenPolarization();
 	G4double phi = CLHEP::twopi*G4UniformRand();
 	G4double cos_theta = 2 * (G4UniformRand()) - 1;
-	return G4ThreeVector(sin(phi)*sqrt(1 - cos_theta*cos_theta), cos(phi)*sqrt(1 - cos_theta*cos_theta), cos_theta);
+	return initial_polarization = G4ThreeVector(sin(phi)*sqrt(1 - cos_theta*cos_theta), cos(phi)*sqrt(1 - cos_theta*cos_theta), cos_theta);
 }
+
+G4double CustomRunManager::FetchEnergy()
+{return initial_energy;}
 
 G4double CustomRunManager::GenEnergy()
 {
@@ -393,17 +413,14 @@ G4double CustomRunManager::GenEnergy()
 	//G4cout << "" << G4endl;
 #endif
 	if (current_working_node != NULL)
-		return current_working_node->GenEnergy();
-//#ifdef TEMP_CODE_
-//	return 3.6*eV;
+		return initial_energy = current_working_node->GenEnergy();
 // 9.65*eV ==128nm
 // 3.9236*eV == 316nm
 // 3.6791*eV == 337nm
 // 3.4632*eV == 358nm
 // 3.2585*eV == 380.5nm
 // 3.0538*eV == 406nm
-//#endif 
-	return 3.9236*eV; //primary event parameters are such for a while
+	return initial_energy = 3.9236*eV; //primary event parameters are such for a while
 }
 
 G4double CustomRunManager::get_new_spawn_prob()
@@ -630,6 +647,8 @@ void CustomRunManager::export_to_bmp() //first step is to map position of hits w
 {
 	t_counter = 0; //nullifies history so "scan" can be done again
 	G4double * bits = new G4double[x_num*y_num];
+	for (int g = 0; g < x_num*y_num; g++)
+		bits[g] = 0;
 	G4double lx = t_step*x_num;
 	G4double ly = t_step*y_num;
 	while ((!hits_xs.empty()) && (!hits_ys.empty()) && (!hits_probs.empty()))
@@ -640,8 +659,8 @@ void CustomRunManager::export_to_bmp() //first step is to map position of hits w
 		hits_xs.pop_back();
 		hits_ys.pop_back();
 		hits_probs.pop_back();
-		G4int x_ind = (int)(x / lx);
-		G4int y_ind = (int)(y / ly);
+		G4int x_ind = (int)(x /t_step);
+		G4int y_ind = (int)(y /t_step);
 #define NUM_TO_CONSIDER 3
 		//^should be odd
 		G4double neighbours[NUM_TO_CONSIDER*NUM_TO_CONSIDER];
@@ -652,12 +671,14 @@ void CustomRunManager::export_to_bmp() //first step is to map position of hits w
 		{
 			G4int te_x_ind = (h / NUM_TO_CONSIDER) - NUM_TO_CONSIDER/2;
 			G4int te_y_ind = h % NUM_TO_CONSIDER - NUM_TO_CONSIDER / 2;
-			neighbours[h] = (te_x_ind*t_step)*(te_x_ind*t_step) + (te_y_ind*t_step)*(te_y_ind*t_step);
-			neighbours[h] = exp(-(t_step*t_step)/neighbours[h]);
+			neighbours[h] = (x - t_step*(x_ind+te_x_ind))*(x - t_step*(x_ind + te_x_ind)) 
+				+ (y - t_step*(y_ind + te_y_ind))*(y - t_step*(y_ind + te_y_ind));
+			//^lengths to centers of neighbour cells
+			neighbours[h] = exp(-neighbours[h] / (t_step*t_step));
 			if (((te_x_ind + x_ind) > 0) && ((te_x_ind + x_ind) < x_num) && ((te_y_ind + y_ind) > 0) && ((te_y_ind + y_ind) < y_num))
 				sum += neighbours[h];
 		}
-		if (0 == sum)
+		if (0 != sum)
 		{
 			sum = prob / sum;
 			for (G4int h = 0; h < NUM_TO_CONSIDER*NUM_TO_CONSIDER; h++)
@@ -665,18 +686,25 @@ void CustomRunManager::export_to_bmp() //first step is to map position of hits w
 				G4int te_x_ind = (h / NUM_TO_CONSIDER) - NUM_TO_CONSIDER / 2;
 				G4int te_y_ind = h % NUM_TO_CONSIDER - NUM_TO_CONSIDER / 2;
 				neighbours[h] *= sum;
-				if (((te_x_ind + x_ind) > 0) && ((te_x_ind + x_ind) < x_num) && ((te_y_ind + y_ind) > 0) && ((te_y_ind + y_ind) < y_num))
+				if (((te_x_ind + x_ind) >=0 ) && ((te_x_ind + x_ind) < x_num) && ((te_y_ind + y_ind) >= 0) && ((te_y_ind + y_ind) < y_num))
 					bits[(te_x_ind + x_ind)*y_num + (te_y_ind + y_ind)] += neighbours[h];
 			}
 		}
 #undef NUM_TO_CONSIDER
 	}
-	unsigned char *_bits = new unsigned char[x_num*y_num];
 	G4double max = -1;
 	for (int g = 0; g < x_num*y_num; g++)
+	{
 		if (max < bits[g]) max = bits[g];
+	}
+	if (max <= 0)
+	{
+		delete[] bits;
+		return;
+	}
+	unsigned char *_bits = new unsigned char[x_num*y_num];
 	for (int g = 0; g < x_num*y_num; g++)
-		_bits[g] = (bits[g] < 0 ? 0 : (int)(255*bits[g] / max));
+		_bits[g] = (bits[g] < 0 ? 0 : (int)(255.0*bits[g] / max));
 	delete[] bits;
 	//WORK WITH BMP
 	unsigned int headers[13];
@@ -715,7 +743,7 @@ void CustomRunManager::export_to_bmp() //first step is to map position of hits w
 	for (G4int h = 0; h < y_num;h++)
 	{
 		for (G4int g = 0; g < x_num; g++)
-			bmp << _bits[h] << _bits[h] << _bits[h];
+			bmp << _bits[g*y_num + h] << _bits[g*y_num + h] << _bits[g*y_num + h];
 		for (int g = 0; g < extra_bytes; g++)
 			bmp << (char)0;
 	}
@@ -723,5 +751,24 @@ void CustomRunManager::export_to_bmp() //first step is to map position of hits w
 	//END BMP OUTPUT
 	delete[] _bits;
 }
+
+void CustomRunManager::OnEventStartProc()
+{
+	B1DetectorConstruction* detectorConstruction = (B1DetectorConstruction*)(GetUserDetectorConstruction());
+	GenPosition();
+	GenPolarization();
+	GenMomentum();
+	GenEnergy();
+	curr_mapping_state->curr_x_id = -1;
+	curr_mapping_state->curr_y_id = -1;
+	detectorConstruction->OnEventStartProc(this);
+}
+
+G4ThreeVector CustomRunManager::MappingProc(const G4Track& track, const G4Step& aStep, G4TouchableHandle &fCurrentTouchableHandle)
+{
+	B1DetectorConstruction* detectorConstruction = (B1DetectorConstruction*)GetUserDetectorConstruction();
+	return detectorConstruction->MappingProc(curr_mapping_state, track, aStep, fCurrentTouchableHandle);
+}
+
 #endif
 
