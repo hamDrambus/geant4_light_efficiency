@@ -890,7 +890,7 @@ void CustomOpBoundaryProcess::DielectricDielectric(const G4Step* aStep)
 			  manman->SetPhEvType(RM_PHOTON_TOT_REFL);
 			  G4int chosen_proc = manman->select_photon_BP(to_decider_, G4ThreeVector(0, 0, 0), NewMomentum);
 			  if ((chosen_proc == RM_CHOOSE_BOTH) || (chosen_proc == RM_CHOOSE_REFL))
-				  manman->SetPhEvProb(1); //TODO: set to 1, as must be (or make depending on chosen_proc)
+				  manman->SetPhEvProb(1);
 			  else manman->SetPhEvProb(0); //effectively kills the event
 			  manman->process_end(aStep);
 		  }

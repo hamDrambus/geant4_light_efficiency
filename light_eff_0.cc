@@ -53,20 +53,21 @@ int main(int argc,char** argv)
   //
   runManager->Initialize();
   //runManager->BeamOn(runManager->x_num*runManager->y_num);
-  runManager->BeamOn(400*runManager->y_num);
+  runManager->BeamOn(40);
   //TODO: check reemiss/noreemiss code
   G4double pb_total, pb_no_reemiss, pb_reemissed;
-  //runManager->get_total_detetion_eff(&pb_no_reemiss, &pb_reemissed, &pb_total);
-  //G4cout<<"total efficieency: "<<pb_total<<G4endl;
-  //G4cout << "not reemissed efficieency: " << pb_reemissed << G4endl;
-  //G4cout << "remissed efficieency: " << pb_no_reemiss<< G4endl; //messed up with names for some reason
+  runManager->get_total_detetion_eff(&pb_no_reemiss, &pb_reemissed, &pb_total);
+  G4cout<<"total efficieency: "<<pb_total<<G4endl;
+  G4cout << "not reemissed efficieency: " << pb_no_reemiss << G4endl;
+  G4cout << "remissed efficieency: " << pb_reemissed<< G4endl; //TODO figure out: messed up with the names for some reason
   //primary_Monte_Carlo->events.size() is always larger by 1 then actual number of primary runs, because 
   //primary_Monte_Carlo->new_sequence() and ->new_event() are called at the end of every sim. (see CustomRunManager->next_event())
   //(so that before every global run last_photon_event is allocated)
   G4cout << "total events proceded: " << (runManager->primary_Monte_Carlo->events.size()-1)+(runManager->extra_run_id) << G4endl;
   //runManager->get_detected_spectrum();
 #ifdef TOP_MESH_TEST
-  runManager->export_to_bmp();
+  runManager->export_to_bmp(&runManager->top_hits_xs, &runManager->top_hits_ys, &runManager->top_hits_probs, "top_mesh_test.bmp");
+  runManager->export_to_bmp(&runManager->bot_hits_xs, &runManager->bot_hits_ys, &runManager->bot_hits_probs, "bot_mesh_test.bmp");
 #endif
 #ifdef G4VIS_USE
   // Initialize visualization

@@ -187,6 +187,8 @@ G4double net_sim_data::hit_prob()
 	return probability/num_of_succ_sims;
 }
 
+//TODO: rework this and others functions involving analyzing of/work with mc_nodes and its descendants
+//via general structured class with functons called at logically important places (such as comparing etc.)
 void net_sim_data::hit_prob(G4double* no_reemiss, G4double *reemissed, G4double* total)
 {
 #ifdef DEBUG_MC_NODES
@@ -236,21 +238,6 @@ void net_sim_data::hit_prob(G4double* no_reemiss, G4double *reemissed, G4double*
 	*reemissed = *reemissed/num_of_succ_sims;
 	*total = *total/num_of_succ_sims;
 }
-
-//
-//void net_sim_data::clear_prob_calc()
-//{
-//#ifdef DEBUG_MC_NODES
-//	G4cout << "NSM: clear_prob_calc()" << G4endl;
-//#endif
-//	probability = -1;
-//	num_of_succ_sims = -1;
-//	if (events.empty()) return;
-//	for (auto i = events.begin(); i != events.end(); i++)
-//	{
-//		i->clear_prob_calc();
-//	}
-//}
 
 void net_sim_data::new_sequence(void)
 {
@@ -331,6 +318,12 @@ MC_node::MC_node(photon_event* parent) :simulation_data(this), ev_parent(parent)
 	//is_accounted = 0;
 	parent->daughter_node = this;
 	EnergySpectrum = NULL;
+	n_mapping_data = NULL;
+}
+
+MC_node::~MC_node()
+{
+	if (n_mapping_data) delete n_mapping_data;
 }
 
 photon_event* MC_node::new_event(MC_node** pp_new_MC_node)//if pp_new_MC_node set to MC_node where new event is created
@@ -348,13 +341,7 @@ photon_event* MC_node::new_event(MC_node** pp_new_MC_node)//if pp_new_MC_node se
 			//this is managed in CustomRunManager->next-event, so return NULL
 		{
 			*pp_new_MC_node = NULL;
-		return NULL;
-//			*pp_new_MC_node = NULL;
-//#ifdef DEBUG_MC_NODES
-//			G4cout << "MCN" << chosen_type << ": return primary new_event()" << G4endl;
-//#endif	
-//			return (this->ev_parent ? (this->ev_parent->container ? (this->ev_parent->container->container ? 
-//				this->ev_parent->container->container->new_event():NULL):NULL):NULL);
+			return NULL;
 		}
 	}
 	else
@@ -507,8 +494,13 @@ G4double MC_node::GenEnergy()
 	return PhotonEnergy;
 }
 
+PseudoMeshData*	MC_node::GenMappingData()
+{
+	return n_mapping_data;
+}
+
 //better not be called after the first sumulation is started
-void MC_node::set_MC_node(G4double prob, G4ThreeVector _start_point1, G4ThreeVector momentum, G4ThreeVector polarization, G4double energy, G4int num_of_sims)
+void MC_node::set_MC_node(G4double prob, PseudoMeshData* mapping_state, G4ThreeVector _start_point1, G4ThreeVector momentum, G4ThreeVector polarization, G4double energy, G4int num_of_sims)
 {
 	if (num_of_sims == 0)
 	{
@@ -529,10 +521,12 @@ void MC_node::set_MC_node(G4double prob, G4ThreeVector _start_point1, G4ThreeVec
 	PhotonPolarization = polarization;
 	PhotonEnergy = energy;
 	EnergySpectrum = NULL;
+	n_mapping_data = new PseudoMeshData;
+	*n_mapping_data = *mapping_state;
 }
 
 //better not be called after the first sumulation is started
-void MC_node::set_MC_node(G4double prob, G4ThreeVector _start_point1, G4ThreeVector _start_point2, G4double abs_len,
+void MC_node::set_MC_node(G4double prob, PseudoMeshData* mapping_state, G4ThreeVector _start_point1, G4ThreeVector _start_point2, G4double abs_len,
 	G4MaterialPropertyVector* energy_spec, G4int num_of_sims)
 {
 	if (num_of_sims == 0)
@@ -553,6 +547,8 @@ void MC_node::set_MC_node(G4double prob, G4ThreeVector _start_point1, G4ThreeVec
 	start_point2 = _start_point2;
 	PhotonEnergy = -1;
 	EnergySpectrum = energy_spec;
+	n_mapping_data = new PseudoMeshData;
+	*n_mapping_data = *mapping_state;
 }
 //
 //void MC_node::clear_prob_calc()

@@ -1,6 +1,6 @@
 #ifndef PSEUDO_MESH_HH
 #define PSEUDO_MESH_HH
-//TODO: should I make this via inhereting Navigator?
+//depr. TODO: should I make this via inhereting Navigator?
 #include "G4VUserDetectorConstruction.hh"
 #include "G4RunManager.hh"
 #include "G4GeometryTolerance.hh"
@@ -13,6 +13,7 @@ public:
 	PseudoMesh* curr_mesh;
 	G4int curr_x_id, curr_y_id;
 	PseudoMeshData(void);
+	void SetDefauldInd(void);
 };
 
 //    .*.
@@ -55,7 +56,7 @@ public:
 	//^checks entering/leaving, called from UserSteppingAction, manages everything
 	G4ThreeVector OnStartOfEventProc(G4ThreeVector position, G4ThreeVector mom_direction,G4LogicalVolume* start_volume);
 	//^ sets initial state after each start of ProcessOneEvent (current indices)
-	//^ !!! TODO: in case start_volume is inside the cell, there is no reset of indeces - for a secondary process occur normally,
+	//^ DONE !!! TODO: in case start_volume is inside the cell, there is no reset of indeces - for a secondary process occur normally,
 	//^ when originating as secondary from previous mapping. This is not correct behaviour. State of mapping must be written as initial
 	//^ parameter for secondary processes in order to allow for a multi-nested mapping or several secondaries from one mapping (i.g. from cell)
 	//^ This is done quite easily because only two indices per PseudoMesh define the state, but the case of nested mappings
@@ -65,7 +66,8 @@ public:
 	//^ Also any photon may be mapped just once at the same time (there is no pressing need for more because there is no nested periodic 
 	//^ constructions like GEM inside every cell of a larger one), so the mapping data may contain
 	//^ only pointer to PseudoMesh class and the two indices. Positions and touchables are already assigned.
-
+	void GetDefaultMappingData(PseudoMeshData* data); //set some default indices, required 
+	//^ when inital position is in the cell and there is no mapping data, which is actually kind of error
 	G4ThreeVector PseudoMesh::hexagonal_mapping(PseudoMeshData *data, const G4Track& aTrack, const G4Step& aStep);
 	~PseudoMesh();
 	//TODO: account for rotation (add transformation of local to global)? 

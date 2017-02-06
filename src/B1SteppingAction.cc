@@ -27,7 +27,7 @@ void B1SteppingAction::UserSteppingAction(const G4Step* step)
 	if (NULL==tremor)
 	{// kind of error
 		CustomRunManager* manman = (CustomRunManager*)(G4RunManager::GetRunManager());
-		manman->SetHit(0);
+		manman->SetHit(-1);  //was manman->SetHit(0);
 		step->GetTrack()->SetTrackStatus(fStopAndKill);
 		manman->next_event(step);
 		return;
@@ -37,6 +37,12 @@ void B1SteppingAction::UserSteppingAction(const G4Step* step)
   if (step->GetTrack()->GetTrackStatus() == fStopAndKill) //in case some process killed the track, I need to handle events properly
   {
 	  manman->SetHit(0);
+	  manman->next_event(step);
+	  return;
+  }
+  if (step->GetTrack()->GetTrackStatus() == fKillTrackAndSecondaries) //in case some process fails
+  {
+	  manman->SetHit(-1);
 	  manman->next_event(step);
 	  return;
   }
@@ -63,7 +69,9 @@ void B1SteppingAction::UserSteppingAction(const G4Step* step)
 	  step->GetTrack()->SetTrackStatus(fStopAndKill);
 #ifdef TOP_MESH_TEST
 	  if (step->GetPostStepPoint()->GetTouchableHandle()->GetVolume()->GetLogicalVolume() == detectorConstruction->top_mesh_test_detector)
-		  manman->on_hit_proc(step->GetPostStepPoint()->GetPosition(), detect_prob);
+		  manman->on_hit_proc(step->GetPostStepPoint()->GetPosition(), detect_prob,1);
+	  if (step->GetPostStepPoint()->GetTouchableHandle()->GetVolume()->GetLogicalVolume() == detectorConstruction->LAr_layer)
+		  manman->on_hit_proc(step->GetPostStepPoint()->GetPosition(), detect_prob, 0);
 #endif
 	  manman->next_event(step);
 	  return;
@@ -76,7 +84,9 @@ void B1SteppingAction::UserSteppingAction(const G4Step* step)
   //if detection probability is not a 0 or 1, then it's treated as process
 #ifdef TOP_MESH_TEST
   if (step->GetPostStepPoint()->GetTouchableHandle()->GetVolume()->GetLogicalVolume() == detectorConstruction->top_mesh_test_detector)
-	  manman->on_hit_proc(step->GetPostStepPoint()->GetPosition(), detect_prob);
+	  manman->on_hit_proc(step->GetPostStepPoint()->GetPosition(), detect_prob,1);
+  if (step->GetPostStepPoint()->GetTouchableHandle()->GetVolume()->GetLogicalVolume() == detectorConstruction->LAr_layer)
+	  manman->on_hit_proc(step->GetPostStepPoint()->GetPosition(), detect_prob, 0);
 #endif
   manman->SetPhEvProb(detect_prob);
   manman->SetPhEvType(RM_PHOTON_DETECTION);

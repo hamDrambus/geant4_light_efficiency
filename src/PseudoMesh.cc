@@ -5,6 +5,12 @@ PseudoMeshData::PseudoMeshData(void)
 	curr_mesh = NULL;
 }
 
+void PseudoMeshData::SetDefauldInd(void)
+{
+	curr_x_id = -1;
+	curr_y_id = -1;
+}
+
 void PseudoMesh::hex_indices_by_pos(PseudoMeshData *data, G4double x, G4double y, G4int iX_max, G4int iY_max)
 //^x,y from [0,0] to [Xmax, Ymax]
 {
@@ -49,9 +55,9 @@ G4ThreeVector PseudoMesh::hex_on_leave(PseudoMeshData *data, const G4Step& step,
 	G4double active_x_par, G4double active_y_par)
 {
 	G4ThreeVector pos= step.GetPostStepPoint()->GetPosition();
-	G4double dz = (pos - g_parent_pos).z();
+	G4double dz = (pos - g_cell_posit).z();
 	G4double x_center = (data->curr_x_id - 1) * 2 * cell_size + cell_size + ((data->curr_y_id % 2) ? 0 : cell_size); //x center depends on index of y
-	G4double y_center = ((data->curr_x_id - 1)*cell_size*sqrt(3)) + (2 * cell_size / sqrt(3)); //center of a cell, measured from edge of mapped area
+	G4double y_center = ((data->curr_y_id - 1)*cell_size*sqrt(3)) + (2 * cell_size / sqrt(3)); //center of a cell, measured from edge of mapped area
 	G4double x_rel = pos.x() - g_cell_posit.x() + x_center;
 	G4double y_rel = pos.y() - g_cell_posit.y() + y_center; //relative to edge of mapped area
 	x_rel = x_rel - (active_x_par/ 2);
@@ -74,7 +80,7 @@ G4ThreeVector PseudoMesh::hex_on_leave(PseudoMeshData *data, const G4Step& step,
 //     *
 //TODO:
 //1) account for entering the grid via sides
-//2) acoount for transformations (rotations) (and make them via separate methods)
+//2) account for transformations (rotations) (and make them via separate methods)
 G4ThreeVector PseudoMesh::hexagonal_mapping(PseudoMeshData *data,
 	const G4Track& aTrack, const G4Step& aStep)
 {
@@ -113,16 +119,6 @@ G4ThreeVector PseudoMesh::hexagonal_mapping(PseudoMeshData *data,
 			new_pos = new_pos + g_cell_posit;
 #ifdef DEBUG_MC_NODES
 			G4cout << "MAPPING: Grid mapping to cell. Proposed position: " << new_pos<<G4endl;
-#endif
-#ifdef TEMP_CODE_
-			G4double dx = new_pos.x();
-			G4double dy = new_pos.y();
-			if (!((abs(dx) <= a) && (abs(dy - (dx / sqrt(3))) < (2 * a / sqrt(3))) && (abs(dy + (dx / sqrt(3))) < (2 * a / sqrt(3)))))
-				//^condition of x,y being in the hexagonal with the center at (x_app_center y_app_center)
-			{
-				G4int not_ok=1;
-			}
-			last_ret=new_pos;
 #endif
 			return new_pos;
 		}
@@ -180,7 +176,7 @@ G4ThreeVector PseudoMesh::hexagonal_mapping(PseudoMeshData *data,
 #endif
 			return pos;
 		}
-		if ((abs(y_rel - cell_size*sqrt(3) +x_rel / sqrt(3))<tolerance)&&(dir*G4ThreeVector(0.5,sqrt(3)/2,0)>0)) //x+,y+
+		if ((abs(y_rel - 2*cell_size/sqrt(3) +x_rel / sqrt(3))<tolerance)&&(dir*G4ThreeVector(0.5,sqrt(3)/2,0)>0)) //x+,y+
 		{
 			data->curr_x_id+=(y_index_odd?0:1);
 			data->curr_y_id++;
@@ -196,7 +192,7 @@ G4ThreeVector PseudoMesh::hexagonal_mapping(PseudoMeshData *data,
 #endif
 			return pos;
 		}
-		if ((abs(y_rel - cell_size*sqrt(3) - x_rel / sqrt(3))<tolerance) && (dir*G4ThreeVector(-0.5, sqrt(3) / 2, 0)>0)) //x-,y+
+		if ((abs(y_rel - 2*cell_size/sqrt(3) - x_rel / sqrt(3))<tolerance) && (dir*G4ThreeVector(-0.5, sqrt(3) / 2, 0)>0)) //x-,y+
 		{
 			data->curr_x_id -= (y_index_odd ? 1 : 0); //- picture required - this is the way numeration works
 			data->curr_y_id++;
@@ -212,7 +208,7 @@ G4ThreeVector PseudoMesh::hexagonal_mapping(PseudoMeshData *data,
 #endif
 			return pos;
 		}
-		if ((abs(y_rel + cell_size*sqrt(3) + x_rel / sqrt(3))<tolerance) && (dir*G4ThreeVector(-0.5, -sqrt(3) / 2, 0)>0)) //x-,y-
+		if ((abs(y_rel + 2*cell_size/sqrt(3) + x_rel / sqrt(3))<tolerance) && (dir*G4ThreeVector(-0.5, -sqrt(3) / 2, 0)>0)) //x-,y-
 		{
 			data->curr_x_id -= (y_index_odd ? 1 : 0); //- picture required - this is the way numeration works
 			data->curr_y_id--;
@@ -228,7 +224,7 @@ G4ThreeVector PseudoMesh::hexagonal_mapping(PseudoMeshData *data,
 #endif
 			return pos;
 		}
-		if ((abs(y_rel + cell_size*sqrt(3) - x_rel / sqrt(3))<tolerance) && (dir*G4ThreeVector(0.5, -sqrt(3) / 2, 0)>0)) //x+,y-
+		if ((abs(y_rel + 2*cell_size/sqrt(3) - x_rel / sqrt(3))<tolerance) && (dir*G4ThreeVector(0.5, -sqrt(3) / 2, 0)>0)) //x+,y-
 		{
 			data->curr_x_id += (y_index_odd ? 0 : 1); //- picture required - this is the way numeration works
 			data->curr_y_id--;
@@ -249,6 +245,14 @@ G4ThreeVector PseudoMesh::hexagonal_mapping(PseudoMeshData *data,
 	}
 }
 
+void PseudoMesh::GetDefaultMappingData(PseudoMeshData* data)
+{
+	G4int X_max_index = int(par_x_size / (2 * cell_size));
+	G4int Y_max_index = int((par_y_size - cell_size / (sqrt(3))) / (cell_size*sqrt(3)));
+	data->curr_x_id = X_max_index / 2;
+	data->curr_y_id = Y_max_index / 2; //~center
+}
+
 PseudoMesh::PseudoMesh(G4LogicalVolume* parent_vol, G4ThreeVector g_par_pos, G4double par_x, G4double par_y, G4double par_z,
 	G4LogicalVolume* cell_vol, G4ThreeVector g_cell_pos, G4double cell_parameter/*, box_map_function function*/)
 {
@@ -259,8 +263,8 @@ PseudoMesh::PseudoMesh(G4LogicalVolume* parent_vol, G4ThreeVector g_par_pos, G4d
 	par_y_size = par_y;
 	par_z_size = par_z;
 	cell = cell_vol;
-	cell_size = cell_parameter;
 	g_cell_posit = g_cell_pos;
+	cell_size = cell_parameter;
 }
 
 PseudoMesh::~PseudoMesh()
@@ -268,12 +272,16 @@ PseudoMesh::~PseudoMesh()
 }
 
 //returns global position
+//detector_construction makes checks of entering/leaveing
 G4ThreeVector PseudoMesh::PostSteppingAction(PseudoMeshData* psm_data, const G4Track& aTrack, const G4Step& aStep, G4TouchableHandle &post_step_handle) //checks entering/leaving, called from DetectorConstruction, manages everything
 {
-	G4LogicalVolume* postV = post_step_handle->GetVolume()->GetLogicalVolume();
-	G4LogicalVolume* preV = aStep.GetPreStepPoint()->GetTouchableHandle()->GetVolume()->GetLogicalVolume();
-	// TODO? change to (postV == parent) || (postV == cell) || (preV == cell) || (preV == parent) ?
-	if ((aStep.GetPostStepPoint()->GetStepStatus()==fGeomBoundary)&&((postV == parent) || (preV == cell)))
-		return hexagonal_mapping(psm_data, aTrack, aStep);
-	return aStep.GetPostStepPoint()->GetPosition();
+	G4ThreeVector ret = hexagonal_mapping(psm_data, aTrack, aStep);
+	if ((psm_data->curr_x_id < 0) || (psm_data->curr_y_id < 0))
+	{
+		if (psm_data->curr_mesh == this)
+			psm_data->curr_mesh = NULL;
+	}
+	else
+		psm_data->curr_mesh = this;
+	return ret;
 }

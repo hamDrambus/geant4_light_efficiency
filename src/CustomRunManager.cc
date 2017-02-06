@@ -38,10 +38,6 @@ void CustomRunManager::DoEventLoop(G4int n_event,const char* macroFile,G4int n_s
 		G4cout << "simulated " << i_event << "/" << n_event << " ("<< G4int(100.0*i_event/n_event)<< "%)" << G4endl;
 	}
     if(runAborted) break;
-	//below is managed in
-	//depr: primary_Monte_Carlo->new_sequence();
-	//depr: last_event = primary_Monte_Carlo->new_event();
-	//depr: current_working_node = NULL;
   }
   g_out:
   TerminateEventLoop();
@@ -66,13 +62,19 @@ G4int CustomRunManager::spawn_new_MC_node(const G4Step* step, G4double prob,
 		return 0;
 	}
 	G4int depth = get_sim_depth();
+#if defined(TOP_MESH_TEST)||defined(TEST_MESH_SIDEWAYS)
+	if (depth >= 3)
+#endif
+#if !(defined(TOP_MESH_TEST)||defined(TEST_MESH_SIDEWAYS))
 	if (depth >= 8)
+#endif
+
 	{
 		num_of_sims = 0;
 		goto endf;
 	}
-	if (depth >= 2)
-		num_of_sims = (num_of_sims<8)? 1: num_of_sims / 8.0;
+	//if (depth >= 2)
+	//	num_of_sims = (num_of_sims<8)? 1: num_of_sims / 8.0;
 endf:
 	if (num_of_sims == 0)
 	{
@@ -83,7 +85,7 @@ endf:
 	}
 	has_finished_secondaries = 0;
 	MC_node* node = new MC_node(last_event);
-	node->set_MC_node(prob, step->GetPostStepPoint()->GetPosition(), momentum, polarization, step->GetPreStepPoint()->GetTotalEnergy(),num_of_sims);
+	node->set_MC_node(prob, curr_mapping_state, step->GetPostStepPoint()->GetPosition(), momentum, polarization, step->GetPreStepPoint()->GetTotalEnergy(), num_of_sims);
 	return 0;
 }
 
@@ -137,7 +139,7 @@ endf:
 	}
 	else return -1; //error
 	G4double ph_E = step->GetPreStepPoint()->GetTotalEnergy();
-	node->set_MC_node(prob, step->GetPreStepPoint()->GetPosition(),step->GetPostStepPoint()->GetPosition(),
+	node->set_MC_node(prob, curr_mapping_state, step->GetPreStepPoint()->GetPosition(), step->GetPostStepPoint()->GetPosition(),
 		abs_len->Value(ph_E),energy_spectrum,num_of_sims);
 	has_finished_secondaries = 0;
 	return 0;
@@ -186,6 +188,7 @@ G4int CustomRunManager::next_event(const G4Step* step) //called in UserSteppingA
 				has_finished_secondaries = 1;
 				curr_ph_ev_prob = 1;
 				curr_ph_ev_type = RM_PHOTON_UNDEFINED;
+				OnNewSimulationProc();
 				primary_Monte_Carlo->new_sequence();
 				last_event = primary_Monte_Carlo->new_event();
 				delete pp_MC;
@@ -214,6 +217,7 @@ G4int CustomRunManager::next_event(const G4Step* step) //called in UserSteppingA
 				has_finished_secondaries = 1;
 				curr_ph_ev_prob = 1;
 				curr_ph_ev_type = RM_PHOTON_UNDEFINED;
+				OnNewSimulationProc(); //TODO ?: transfer few lines above inside?
 				primary_Monte_Carlo->new_sequence();
 				last_event = primary_Monte_Carlo->new_event();
 				delete pp_MC;
@@ -329,20 +333,23 @@ G4int CustomRunManager::select_photon_BP(const G4Step* step, G4ThreeVector defl_
 		else
 			return RM_CHOOSE_REFL;
 	}
-	if (((pre_volume == detC->top_cell_hole) || (pre_volume == detC->top_cell_container)))
+	if (((pre_volume == detC->top_cell_hole) || (pre_volume == detC->top_cell_container) || (pre_volume == detC->top_cell_hole_dielectric)))
 	{
+#if defined(TOP_MESH_TEST)||defined(TEST_MESH_SIDEWAYS)
+		return RM_CHOOSE_BOTH;
+#endif
 		if (post_volume==detC->top_cell)
+
 			return RM_CHOOSE_REFL;
 	}
-	//if (pre_volume == detC->mid_top)
-	//{
-	//	if (defl_momentum.z() <= 0) return 0;//TODO: set to RM_CHOOSE_REFL
-	//	else return RM_CHOOSE_BOTH;
-	//}
+	if (post_volume == detC->bot_cell)
+		return RM_CHOOSE_REFL;
+	if (post_volume == detC->top_cell_hole_dielectric)
+		return RM_CHOOSE_BOTH;
 #ifdef TEMP_CODE_
 	return RM_CHOOSE_DEFL;
 #endif
-	return RM_CHOOSE_BOTH; //W! too much treeing
+	return RM_CHOOSE_BOTH; //TODO: W! too much treeing
 }
 
 G4ThreeVector CustomRunManager::FetchPosition()
@@ -368,6 +375,12 @@ G4ThreeVector CustomRunManager::GenPosition()
 	else
 		return initial_position = G4ThreeVector(0, 0, 0);
 #endif
+#ifdef TEST_MESH_SIDEWAYS
+	return initial_position = G4ThreeVector(-9, 0, 10.9); //CELL SIZE = 4.5
+#endif
+//#ifdef TEMP_CODE_
+//	return initial_position = G4ThreeVector(3.6+0.42, 0, 0);
+//#endif
 	return initial_position = G4ThreeVector(0, 0, 0); //primary event parameters are such for a while
 }
 
@@ -380,10 +393,18 @@ G4ThreeVector CustomRunManager::GenMomentum()
 	//G4cout << "" << G4endl;
 #endif
 	if (current_working_node != NULL)
-		return initial_polarization = current_working_node->GenMomentum();
+		return initial_momentum_direction = current_working_node->GenMomentum();
 #ifdef TOP_MESH_TEST
 	return initial_momentum_direction = G4ThreeVector(0, 0, 1);
 #endif
+#ifdef TEST_MESH_SIDEWAYS
+	//1*cell_size/(2*h+plate_width)<z<3*cell_size/(2*h+plate_width), h==z_ps_gem_boundary - z_initial 
+	G4double dx = 3 * 4.5 / (0.2 + 0.6);
+	return initial_momentum_direction = G4ThreeVector(dx*cos(CLHEP::pi / 3), dx*sin(CLHEP::pi / 3), 1).unit(); //CELL SIZE = 4.5
+#endif
+//#ifdef TEMP_CODE_
+//	return initial_momentum_direction = G4ThreeVector(0, 0, 1);
+//#endif
 	G4double phi = CLHEP::twopi*G4UniformRand();
 	G4double cos_theta = 2*(G4UniformRand())-1;
 	return initial_momentum_direction = G4ThreeVector(sin(phi)*sqrt(1 - cos_theta*cos_theta), cos(phi)*sqrt(1 - cos_theta*cos_theta), cos_theta);
@@ -421,6 +442,25 @@ G4double CustomRunManager::GenEnergy()
 // 3.2585*eV == 380.5nm
 // 3.0538*eV == 406nm
 	return initial_energy = 3.9236*eV; //primary event parameters are such for a while
+}
+
+PseudoMeshData*	CustomRunManager::GenMappingState() //Position is assumed to be already updated before the call
+{
+	PseudoMeshData* temp=NULL;
+	if (current_working_node != NULL)
+		temp = current_working_node->GenMappingData();
+	if (temp == NULL) //in case current_working_node!=NULL this is erroneous situation but not fatal
+	{
+		B1DetectorConstruction* detectorConstruction = (B1DetectorConstruction*)(GetUserDetectorConstruction());
+		detectorConstruction->GetPseudoMeshByPoint(curr_mapping_state, FetchPosition(),FetchMomentum());
+		if (curr_mapping_state->curr_mesh != NULL)
+			curr_mapping_state->curr_mesh->GetDefaultMappingData(curr_mapping_state);
+		else
+			curr_mapping_state->SetDefauldInd();
+	}
+	else
+		*curr_mapping_state = *temp;
+	return curr_mapping_state;
 }
 
 G4double CustomRunManager::get_new_spawn_prob()
@@ -634,16 +674,26 @@ void CustomRunManager::get_detected_spectrum(std::string out_filename)
 
 #ifdef TOP_MESH_TEST
 //!!WARNING - horizontal positioni of test detector is assumed
-void CustomRunManager::on_hit_proc(G4ThreeVector point, G4double prob) //called when test detector is hit with photon
+void CustomRunManager::on_hit_proc(G4ThreeVector point, G4double prob, G4int bot_top) //called when test detector is hit with photon
 {
 	G4double net_prob = prob*get_curr_event_probab();
 	if (net_prob < 0) return;
-	hits_xs.push_back(point.x());
-	hits_ys.push_back(point.y());
-	hits_probs.push_back(net_prob);
+	if (bot_top == 0)
+	{
+		bot_hits_xs.push_back(point.x());
+		bot_hits_ys.push_back(point.y());
+		bot_hits_probs.push_back(net_prob);
+	}
+	if (bot_top == 1)
+	{
+		top_hits_xs.push_back(point.x());
+		top_hits_ys.push_back(point.y());
+		top_hits_probs.push_back(net_prob);
+	}
 }
 
-void CustomRunManager::export_to_bmp() //first step is to map position of hits with arbitrary coordinates to bitmap. Then write to file 
+void CustomRunManager::export_to_bmp(std::list<G4double>* hits_xs, std::list<G4double> *hits_ys, std::list<G4double> *hits_probs, G4String filename) 
+//^first step is to map position of hits with arbitrary coordinates to bitmap. Then write to file 
 {
 	t_counter = 0; //nullifies history so "scan" can be done again
 	G4double * bits = new G4double[x_num*y_num];
@@ -651,14 +701,18 @@ void CustomRunManager::export_to_bmp() //first step is to map position of hits w
 		bits[g] = 0;
 	G4double lx = t_step*x_num;
 	G4double ly = t_step*y_num;
-	while ((!hits_xs.empty()) && (!hits_ys.empty()) && (!hits_probs.empty()))
+	while ((!hits_xs->empty()) && (!hits_ys->empty()) && (!hits_probs->empty()))
 	{
-		G4double x = hits_xs.back()-x_start;
-		G4double y = hits_ys.back()-y_start;
-		G4double prob = hits_probs.back();
-		hits_xs.pop_back();
-		hits_ys.pop_back();
-		hits_probs.pop_back();
+		G4double x = hits_xs->back()-x_start;
+		G4double y = hits_ys->back()-y_start;
+		G4double prob = hits_probs->back();
+		hits_xs->pop_back();
+		hits_ys->pop_back();
+		hits_probs->pop_back();
+		if ((x<0) || (x>t_step*x_num))
+			continue;
+		if ((y<0) || (y>t_step*y_num))
+			continue;
 		G4int x_ind = (int)(x /t_step);
 		G4int y_ind = (int)(y /t_step);
 #define NUM_TO_CONSIDER 3
@@ -723,7 +777,7 @@ void CustomRunManager::export_to_bmp() //first step is to map position of hits w
 	headers[11] = 0;
 	headers[12] = 0;
 	std::ofstream bmp;
-	bmp.open("top_mesh_test.bmp",std::ios_base::trunc|std::ios_base::binary);
+	bmp.open(filename,std::ios_base::trunc|std::ios_base::binary);
 	bmp << "BM";
 	for (G4int h = 0; h <= 5; h++)
 	{
@@ -750,7 +804,8 @@ void CustomRunManager::export_to_bmp() //first step is to map position of hits w
 	bmp.close();
 	//END BMP OUTPUT
 	delete[] _bits;
-}
+}S
+#endif
 
 void CustomRunManager::OnEventStartProc()
 {
@@ -759,8 +814,7 @@ void CustomRunManager::OnEventStartProc()
 	GenPolarization();
 	GenMomentum();
 	GenEnergy();
-	curr_mapping_state->curr_x_id = -1;
-	curr_mapping_state->curr_y_id = -1;
+	GenMappingState();
 	detectorConstruction->OnEventStartProc(this);
 }
 
@@ -770,5 +824,7 @@ G4ThreeVector CustomRunManager::MappingProc(const G4Track& track, const G4Step& 
 	return detectorConstruction->MappingProc(curr_mapping_state, track, aStep, fCurrentTouchableHandle);
 }
 
-#endif
+void CustomRunManager::OnNewSimulationProc(void)
+{
 
+}

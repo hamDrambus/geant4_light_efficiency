@@ -4,6 +4,7 @@
 //TODO: optimize get_hit_probb(double*,double*,double*) (excessive checks at the moment)
 
 #include "globals.hh"
+#include "PseudoMesh.hh"
 #include "CustomRunManager.hh"
 #include "G4GeometryTolerance.hh"
 
@@ -14,6 +15,7 @@
 class MC_node;
 class one_sim_data;
 class net_sim_data;
+class PseudoMeshData;
 
 class photon_event
 {
@@ -92,6 +94,8 @@ public:
 	G4double PhotonEnergy;
 	G4MaterialPropertyVector* EnergySpectrum;
 
+	PseudoMeshData* n_mapping_data; //created in set node, delteted in destructor
+
 	photon_event* ev_parent;
 	one_sim_data* parent_container;
 	net_sim_data* parent_cont_cont;
@@ -104,14 +108,17 @@ public:
 	G4ThreeVector	GenMomentum();
 	G4ThreeVector	GenPolarization();
 	G4double		GenEnergy();
+	PseudoMeshData*	GenMappingData();
 
 	MC_node(photon_event* parent);
+	~MC_node();
 
 	//better not be called after the first sumulation is started
-	void set_MC_node(G4double prob, G4ThreeVector _start_point1, G4ThreeVector _start_point2, G4double abs_len, 
+	void set_MC_node(G4double prob,PseudoMeshData* mapping_state, G4ThreeVector _start_point1, G4ThreeVector _start_point2, G4double abs_len, 
 		G4MaterialPropertyVector* energy_spec, G4int num_of_sims = 2);
 	//better not be called after the first sumulation is started
-	void set_MC_node(G4double prob, G4ThreeVector _start_point1, G4ThreeVector momentum, G4ThreeVector polariztion, G4double energy, G4int num_of_sims=1);
+	void set_MC_node(G4double prob, PseudoMeshData* mapping_state, G4ThreeVector _start_point1, G4ThreeVector momentum, 
+		G4ThreeVector polariztion, G4double energy, G4int num_of_sims = 1);
 	void SetHit(G4bool is_hit);
 	photon_event* new_event(MC_node **pp_new_MC_node); //if pp_new_MC_node set no *NULL, then new event is crated in current MC_node 
 	G4int is_over(void); //all simulations are over

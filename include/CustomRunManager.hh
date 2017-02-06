@@ -2,20 +2,26 @@
 #define CustomRunManager_h 1
 
 //#define DEBUG_MC_NODES
-#define TOP_MESH_TEST
-//^if defined, then additional detector box is created above the topmost pseudo GEM (but below cell volume), 
-//and photon posistions upon the hit the are written in bmp. Also photons are generated orthogonally to the plate in order to 'scan' it. 
+//#define TOP_MESH_TEST
+//^if defined, then additional detectors boxes are created:
+// above the topmost pseudo GEM (but below cell volume) and LAr layer which also becomes a detector
+//Photon posistions upon the hit the are written in bmp (one file for LAr, second for additional top box). 
+//Also photons are generated orthogonally to the plate in order to 'scan' it. 
 //Position of initial photons follows the square pattern with small fluctuations. (initial distributions are overridden)
+//#define TEST_MESH_SIDEWAYS
+
+#ifdef TEST_MESH_SIDEWAYS
+#undef TOP_MESH_TEST
+#endif
 
 #define TEMP_CODE_
+//^marks everything that is temporary so I don't forget
 #define WLS_FILM_WIDTH 100*micrometer
 #define PMMA_WIDTH 1.5*mm
 #define PMT_DIAMETER 51*mm
-//^marks everything that is temporary so I don't forget
 #define MIN_ALLOWED_PROBABILITY 4e-6
 #define MIN_ALLOWED_STEPPING 4e-6
 #define SPEC_INTEGRATION_STEPS 500
-//^must be int
 
 #include "G4RunManager.hh"
 #include "G4SystemOfUnits.hh"
@@ -61,7 +67,9 @@ class PseudoMeshData;
 //	4) Storing mapping state and transitional functiion for work with it (being called from process,
 //	call detector construction's methods)
 //	5) Analisis of simulation
+//	6) Supress growths of secondary photons (number of combinations) - this option is shared with detector construction
 // issue: fuctions for primary simulation MC node are somewhat duplicated from MC_node class
+// Also managing of MC node be better be reworked with proper interface
 
 class CustomRunManager:public G4RunManager
 {
@@ -87,20 +95,21 @@ public:
 	PseudoMeshData* curr_mapping_state; //set from PreEventProcedure either based on primary photon posions or
 	//mapping state of MC_Node
 	
-	G4int spawn_new_MC_node(const G4Step* step, G4double prob, G4ThreeVector momentum, G4ThreeVector polarization, G4int num_of_sims = 1);
-#ifdef TOP_MESH_TEST
+	G4int spawn_new_MC_node(const G4Step* step, G4double prob, G4ThreeVector momentum, G4ThreeVector polarization, G4int num_of_sims = 0);
+#if defined(TOP_MESH_TEST)||defined(TEST_MESH_SIDEWAYS)
 	G4int spawn_new_MC_node(const G4Step* step, G4double prob, G4Material *WSL_pars, G4int num_of_sims =0);
 #else
-	G4int spawn_new_MC_node(const G4Step* step, G4double prob, G4Material *WSL_pars, G4int num_of_sims = 150);
+	G4int spawn_new_MC_node(const G4Step* step, G4double prob, G4Material *WSL_pars, G4int num_of_sims = 0);//150
 #endif
 #ifdef TOP_MESH_TEST
-	std::list<G4double> hits_xs, hits_ys, hits_probs;
+	std::list<G4double> top_hits_xs, top_hits_ys, top_hits_probs;
+	std::list<G4double> bot_hits_xs, bot_hits_ys, bot_hits_probs;
 	G4int x_num, y_num; //discretisation parameters (same as size of bmp)
 	G4double x_start, y_start;
 	G4double t_step, t_uncert;
 	G4int t_counter;
-	void on_hit_proc(G4ThreeVector point,G4double prob); //called when test detector is hit with photon
-	void export_to_bmp();
+	void on_hit_proc(G4ThreeVector point,G4double prob,G4int top_bot); //called when test detector is hit with photon
+	void export_to_bmp(std::list<G4double>* hits_x, std::list<G4double> *hits_y, std::list<G4double> *probs, G4String filename);
 #endif
 	//below manage memory allocation for photon_events* chains (list that is)
 	//so that every photon process is written at the right place 
@@ -112,13 +121,12 @@ public:
 	//So it effectively calls next_event for the previous process to the one it is entered from 
 	//('step' is the same for all process in the sequence)
 	//also new_event() in next_event() must not return NULL in this function (because there is no hit inside processes, only in UserSteppingAction)
-	//WARNING! must be called BBEFORE spawn_new_MC_node
+	//WARNING! must be called BEFORE spawn_new_MC_node
 	//P.S. ugly
-	
-	//!WARNING probably setting data should be at the end of the process, not in UserSteppingAction, 
-	//because two and more descrete processes are probably preceding UserSteppingActoin - TO CHECK
 
-	//depr: SetHit is used for this purpose //G4int close_event(); //called at EndOfEvent (end of simulation)
+	virtual void OnNewSimulationProc(void); //called right before calling PrimaryMCnode->new_sequence
+	//its present purpose is to decrease memory consumption by writing sim data and removing simulated sequence
+
 	G4int is_secondary_MC(void); //true if there are secondary MC (MC_nodes) to be simulated
 	net_sim_data* primary_Monte_Carlo; //has no parent MC - stores data (sequences) for initial simulation
 	//number of simulations there^ is number of events in beamOn()
@@ -133,10 +141,10 @@ public:
 	{
 		curr_mapping_state = new PseudoMeshData;
 #ifdef TOP_MESH_TEST
-		x_num = 1200;
-		y_num = 900;
-		x_start = -138 * mm / 2;
-		y_start = -141 * mm / 2;
+		x_num = 600;
+		y_num = 450;
+		x_start = 8 * mm / 2;
+		y_start = 0 * mm / 2;
 		t_step = 0.1*mm;
 		t_uncert = 0.05*mm;
 		t_counter = 0;
@@ -158,6 +166,7 @@ public:
 	G4ThreeVector	GenMomentum();
 	G4ThreeVector	GenPolarization();
 	G4double		GenEnergy();
+	PseudoMeshData*	GenMappingState();
 
 	G4ThreeVector	FetchPosition();
 	G4ThreeVector	FetchMomentum();

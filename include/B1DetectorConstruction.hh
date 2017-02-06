@@ -49,6 +49,8 @@ public:
 	void OnEventStartProc(CustomRunManager* manman);
 	G4ThreeVector MappingProc(PseudoMeshData *psm_data, const G4Track& track, 
 		const G4Step& aStep, G4TouchableHandle &fCurrentTouchableHandle);
+	void GetPseudoMeshByPoint(PseudoMeshData* data, G4ThreeVector pos, G4ThreeVector momDir); //changes only data->curr_mesh
+	G4bool FindDaughterPhysicalInL(G4VPhysicalVolume* to_find, G4LogicalVolume *origin); //recursive
 
 	G4LogicalVolume* top_ps_plate; //gem, but at the moment is just a solid plate
 	G4LogicalVolume* bot_ps_plate;
@@ -58,14 +60,21 @@ public:
 
 	G4LogicalVolume* top_cell_container;
 	G4LogicalVolume* top_cell;
-	G4LogicalVolume* top_cell_plate;
 	G4LogicalVolume* top_cell_hole;
-	//G4LogicalVolume* top_cell_rimtop; //these are in hole - polycone
-	//G4LogicalVolume* top_cell_rimbot;
+	G4LogicalVolume* top_cell_hole_dielectric;
+	
+	G4LogicalVolume* bot_cell_container;
+	G4LogicalVolume* bot_cell;
+	G4LogicalVolume* bot_cell_hole;
+	G4LogicalVolume* bot_cell_hole_dielectric;
 #ifdef TOP_MESH_TEST
 	G4LogicalVolume* top_mesh_test_detector;
+#else
+	G4LogicalVolume* top_mesh_absorber; //between cell and GEM, absorb light passed through GEM
+	G4LogicalVolume* bot_mesh_absorber;
 #endif
 	PseudoMesh* top_GEM;
+	PseudoMesh* bot_GEM;
 
 	G4LogicalVolume* Xp_wls; //p-plus, m-minus
 	G4LogicalVolume* Xn_wls;
@@ -90,7 +99,7 @@ public:
 	//I need this to be placed inside windows and used as detectors 
 	//(because the code requires the detector volumes to be slightly inside its physical representation so that optics works as required)
 	//because in case of reflection end step point is placed inside volume photon is reflected form and this leads to Hit if that volume is detector 
-	//even though reflection occured. TODO: This can also be eluminated via this->GetHitProbability() by considering photon direction
+	//even though reflection occured. DONE TODO: This can also be eluminated via this->GetHitProbability() by considering photon direction
 
 	G4LogicalVolume* Xp_PMT;
 	G4LogicalVolume* Xn_PMT;
