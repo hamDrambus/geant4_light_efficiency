@@ -550,15 +550,6 @@ void MC_node::set_MC_node(G4double prob, PseudoMeshData* mapping_state, G4ThreeV
 	n_mapping_data = new PseudoMeshData;
 	*n_mapping_data = *mapping_state;
 }
-//
-//void MC_node::clear_prob_calc()
-//{
-//#ifdef DEBUG_MC_NODES
-//	G4cout << "MCN: clear_prob_calc()" << G4endl;
-//#endif
-//	is_accounted = 0;
-//	simulation_data.clear_prob_calc();
-//}
 
 G4double MC_node::hit_prob() //net hit probability of node
 {

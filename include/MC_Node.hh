@@ -3,10 +3,12 @@
 
 //TODO: optimize get_hit_probb(double*,double*,double*) (excessive checks at the moment)
 
-#include "globals.hh"
 #include "PseudoMesh.hh"
-#include "CustomRunManager.hh"
+#include "GlobalDefinitions.hh"
 #include "G4GeometryTolerance.hh"
+#include "globals.hh"
+#include "G4SystemOfUnits.hh"
+#include <list>
 
 #define MC_NODE_UNDEFINED 0
 #define MC_NODE_DESCRETE 1

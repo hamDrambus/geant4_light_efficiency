@@ -826,5 +826,7 @@ G4ThreeVector CustomRunManager::MappingProc(const G4Track& track, const G4Step& 
 
 void CustomRunManager::OnNewSimulationProc(void)
 {
-
+	sim_results->UpdateProbabilities(primary_Monte_Carlo);
+	sim_results->UpdateSpectra(primary_Monte_Carlo);
+	primary_Monte_Carlo->events.pop_back(); //discard previous simulation in order to decrease memory usage
 }

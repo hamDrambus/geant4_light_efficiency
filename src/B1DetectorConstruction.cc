@@ -28,6 +28,7 @@ B1DetectorConstruction::B1DetectorConstruction()
 	x_rot_m = NULL;
 	y_rot_m = NULL;
 	top_GEM = NULL;
+	bot_GEM = NULL;
 }
 
 B1DetectorConstruction::~B1DetectorConstruction()
@@ -35,6 +36,7 @@ B1DetectorConstruction::~B1DetectorConstruction()
 	if (x_rot_m) delete x_rot_m;
 	if (y_rot_m) delete y_rot_m;
 	if (top_GEM) delete top_GEM;
+	if (bot_GEM) delete bot_GEM;
 }
 
 G4ThreeVector B1DetectorConstruction::get_global_normal(G4StepPoint* point, G4int *validity)
