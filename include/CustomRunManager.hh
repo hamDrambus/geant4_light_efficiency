@@ -37,6 +37,9 @@ protected:
 	G4ThreeVector initial_momentum_direction;
 	G4ThreeVector initial_polarization;
 	G4double initial_energy;
+#ifdef AR_EMISSION_NITRO
+	G4MaterialPropertyVector* EnergySpectrum;//alternative to fixed initial_energy^
+#endif
 
 	G4double curr_ph_ev_prob;
 	G4double curr_ph_ev_type;
@@ -60,7 +63,7 @@ public:
 #if defined(TOP_MESH_TEST)||defined(TEST_MESH_SIDEWAYS)
 	G4int spawn_new_MC_node(const G4Step* step, G4double prob, G4Material *WSL_pars, G4int num_of_sims =0);
 #else
-	G4int spawn_new_MC_node(const G4Step* step, G4double prob, G4Material *WSL_pars, G4int num_of_sims = 150);//150
+	G4int spawn_new_MC_node(const G4Step* step, G4double prob, G4Material *WSL_pars, G4int num_of_sims = 0);//150
 #endif
 #ifdef TOP_MESH_TEST
 	std::list<G4double> top_hits_xs, top_hits_ys, top_hits_probs;
@@ -102,6 +105,9 @@ public:
 	{
 		curr_mapping_state = new PseudoMeshData;
 		sim_results = new SimulationSummary;
+#ifdef AR_EMISSION_NITRO
+		EnergySpectrum=NULL;
+#endif
 #ifdef TOP_MESH_TEST
 		x_num = 600;
 		y_num = 450;
@@ -130,7 +136,11 @@ public:
 	G4ThreeVector	GenPolarization();
 	G4double		GenEnergy();
 	PseudoMeshData*	GenMappingState();
-
+#ifdef AR_EMISSION_NITRO	
+protected:
+	void GenEnergySpectrum(); //position and momentum must to be generated before
+public:
+#endif
 	G4ThreeVector	FetchPosition();
 	G4ThreeVector	FetchMomentum();
 	G4ThreeVector	FetchPolarization();

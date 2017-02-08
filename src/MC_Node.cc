@@ -1,5 +1,7 @@
 #include "MC_Node.hh"
 
+one_sim_data::~one_sim_data() {}
+
 G4double one_sim_data::hit_prob() //recursive function
 {
 #ifdef DEBUG_MC_NODES
@@ -91,22 +93,6 @@ void one_sim_data::hit_prob(G4double* no_reemiss, G4double *reemissed, G4double*
 	}
 }
 
-
-//void one_sim_data::clear_prob_calc()
-//{
-//#ifdef DEBUG_MC_NODES
-//G4cout << "OSM: clear_prob_calc()" << G4endl;
-//#endif
-//	if (events.begin() == events.end()) return;
-//	for (auto i = events.rbegin(); i != events.rend(); ++i)
-//	{
-//		if (i->daughter_node)
-//		{
-//			i->daughter_node->clear_prob_calc();
-//		}
-//	}
-//}
-
 void one_sim_data::set_event(const G4Step* step, G4double prob, G4int ev_type, G4int is_hit)
 {
 #ifdef DEBUG_MC_NODES
@@ -133,6 +119,12 @@ void one_sim_data::SetHit(G4bool is_hit)
 #endif
 	if (events.end() != events.begin())
 		events.back().has_hit = is_hit;
+}
+
+photon_event::~photon_event()
+{
+	if (daughter_node) 
+		delete daughter_node;
 }
 
 photon_event* one_sim_data::new_event()
@@ -163,6 +155,8 @@ G4int one_sim_data::is_hit()
 }
 
 net_sim_data::net_sim_data(MC_node* paren) :probability(-1), num_of_succ_sims(-1),parent(paren) {};
+
+net_sim_data::~net_sim_data(){}
 
 //recursive function, average here
 G4double net_sim_data::hit_prob()

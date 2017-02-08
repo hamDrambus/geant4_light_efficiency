@@ -24,10 +24,7 @@ class photon_event
 public:
 	photon_event(one_sim_data* p_container) :/* pre_step_pos(), post_step_pos(), pre_volume(NULL), post_volume(NULL),*/
 		continue_prob(1), net_prob(1), daughter_node(0), has_hit(-1), chosen_event_type(RM_PHOTON_UNDEFINED), container(p_container), energy(-1*eV){};
-	~photon_event()
-	{
-		if (daughter_node) delete daughter_node;
-	}
+	~photon_event();
 	//had to decrease memory consumption
 	//G4ThreeVector pre_step_pos;
 	//G4ThreeVector post_step_pos;
@@ -37,7 +34,7 @@ public:
 
 	G4double continue_prob;
 	G4double net_prob;
-	MC_node* daughter_node;
+	MC_node* daughter_node; //this poiters are just a copy, mustn't be deleted
 	one_sim_data* container;
 	G4int has_hit; //-1, 0, 1
 	G4int chosen_event_type;
@@ -50,6 +47,7 @@ public:
 	std::list<photon_event> events; //for debugging actually, and stores end probability of event sequence
 	
 	one_sim_data(net_sim_data* p_contaier) :container(p_contaier){};
+	~one_sim_data();
 	photon_event* new_event(); //returns NULL if last event has hit (0 or 1), managed in net_sim_data
 	void set_event(const G4Step* step, G4double prob, G4int ev_type, G4int is_hit);
 	G4int is_hit();
@@ -66,6 +64,7 @@ class net_sim_data
 {
 public:
 	net_sim_data(MC_node* parent);
+	~net_sim_data();
 	std::list<one_sim_data> events;
 	MC_node* parent;
 	void new_sequence(void); //managed by MC_node

@@ -46,15 +46,16 @@ public:
 	G4double GetSafeOffset(void);
 	//returns small length which can be taken from volume boundary and be guaranteed to lead to a neighbour one.
 	//e.g. auxilary volumes are always have offset of 0.5-1 mm from thier content 
-	void OnEventStartProc(CustomRunManager* manman);
+	void OnEventStartProc(CustomRunManager* manman); //not used now
 	G4ThreeVector MappingProc(PseudoMeshData *psm_data, const G4Track& track, 
 		const G4Step& aStep, G4TouchableHandle &fCurrentTouchableHandle);
 	void GetPseudoMeshByPoint(PseudoMeshData* data, G4ThreeVector pos, G4ThreeVector momDir); //changes only data->curr_mesh
+	G4VPhysicalVolume* GetPVolumeByPoint(G4ThreeVector pos, G4ThreeVector momDir);
 	G4bool FindDaughterPhysicalInL(G4VPhysicalVolume* to_find, G4LogicalVolume *origin); //recursive
 
-	G4LogicalVolume* top_ps_plate; //gem, but at the moment is just a solid plate
+	G4LogicalVolume* top_ps_plate; //just a solid plate
 	G4LogicalVolume* bot_ps_plate;
-	G4LogicalVolume* top_cu_plate; //gem, but at the moment is just a solid plate
+	G4LogicalVolume* top_cu_plate; //just a solid plate
 	G4LogicalVolume* bot_cu_plate;
 	G4LogicalVolume* LAr_layer;
 
@@ -70,9 +71,9 @@ public:
 #ifdef TOP_MESH_TEST
 	G4LogicalVolume* top_mesh_test_detector;
 #else
-	G4LogicalVolume* top_mesh_absorber; //between cell and GEM, absorb light passed through GEM
-	G4LogicalVolume* bot_mesh_absorber;
+	G4LogicalVolume* top_mesh_absorber; //between cell and GEM, absorbs light passed through GEM
 #endif
+	G4LogicalVolume* bot_mesh_absorber;
 	PseudoMesh* top_GEM;
 	PseudoMesh* bot_GEM;
 
@@ -96,7 +97,7 @@ public:
 	//G4LogicalVolume* Xn_PMT_window;
 	//G4LogicalVolume* Yp_PMT_window;
 	//G4LogicalVolume* Yn_PMT_window;
-	//I need this to be placed inside windows and used as detectors 
+	//I needed this to be placed inside windows and used as detectors 
 	//(because the code requires the detector volumes to be slightly inside its physical representation so that optics works as required)
 	//because in case of reflection end step point is placed inside volume photon is reflected form and this leads to Hit if that volume is detector 
 	//even though reflection occured. DONE TODO: This can also be eluminated via this->GetHitProbability() by considering photon direction
@@ -110,23 +111,12 @@ public:
 	G4LogicalVolume* world;
 	G4LogicalVolume* box_interior;
 	G4LogicalVolume* box;
-//NEW
-	//PseudoMesh* top_grid;
-	//G4LogicalVolume *top_plate_container; //same as parent
-	//G4LogicalVolume *top_plate_parent;
-
-	//G4LogicalVolume *top_cell;
-	//G4LogicalVolume *top_cell_copper;
-	//G4LogicalVolume *top_cell_hole;
-	//G4LogicalVolume *top_cell_rimtop;
-	//G4LogicalVolume *top_cell_rimbot;
-	//G4LogicalVolume *top_cell_container;
-	//G4LogicalVolume *top_cell_container_copper;
 
 private:
 	void wavelen_transmittance_to_table(G4MaterialPropertiesTable* table, const G4double* wl, const G4double* tr, G4int size, G4double width);
 	void gen_integral_en_spec (G4String file, G4MaterialPropertiesTable* table);
 	void gen_PMT_QE(G4String file, G4MaterialPropertiesTable* table);
+	void read_table_En(G4String file, G4double* &Ens, G4double* &ys, G4int &size);
 	G4ThreeVector get_global_normal(G4StepPoint* point, G4int *validity);
 };
 

@@ -135,7 +135,7 @@ endf:
 	aMaterialPropertiesTable = WLS_pars->GetMaterialPropertiesTable();
 	if (aMaterialPropertiesTable) {
 		abs_len = aMaterialPropertiesTable->GetProperty("ABSORBTION_LENGTH");
-		energy_spectrum = aMaterialPropertiesTable->GetProperty("WLS_ENERGY_SPECTRUM"); //at the moment contains single out par, but shall spectrum
+		energy_spectrum = aMaterialPropertiesTable->GetProperty("WLS_ENERGY_SPECTRUM");
 	}
 	else return -1; //error
 	G4double ph_E = step->GetPreStepPoint()->GetTotalEnergy();
@@ -379,8 +379,11 @@ G4ThreeVector CustomRunManager::GenPosition()
 	return initial_position = G4ThreeVector(-9, 0, 10.9); //CELL SIZE = 4.5
 #endif
 //#ifdef TEMP_CODE_
-//	return initial_position = G4ThreeVector(3.6+0.42, 0, 0);
+//	return initial_position = G4ThreeVector(0.55, 0.45*sqrt(3)/2, 10.9);
 //#endif
+#ifdef AR_SPEC_TEST
+	return initial_position = G4ThreeVector(0, -0.45*sqrt(3)/2, 10.9);
+#endif
 	return initial_position = G4ThreeVector(0, 0, 0); //primary event parameters are such for a while
 }
 
@@ -403,8 +406,11 @@ G4ThreeVector CustomRunManager::GenMomentum()
 	return initial_momentum_direction = G4ThreeVector(dx*cos(CLHEP::pi / 3), dx*sin(CLHEP::pi / 3), 1).unit(); //CELL SIZE = 4.5
 #endif
 //#ifdef TEMP_CODE_
-//	return initial_momentum_direction = G4ThreeVector(0, 0, 1);
+//	return initial_momentum_direction = G4ThreeVector(2, 0, 1).unit();
 //#endif
+#ifdef AR_SPEC_TEST
+	return initial_momentum_direction = G4ThreeVector(0, 0, 1).unit();
+#endif
 	G4double phi = CLHEP::twopi*G4UniformRand();
 	G4double cos_theta = 2*(G4UniformRand())-1;
 	return initial_momentum_direction = G4ThreeVector(sin(phi)*sqrt(1 - cos_theta*cos_theta), cos(phi)*sqrt(1 - cos_theta*cos_theta), cos_theta);
@@ -430,18 +436,25 @@ G4double CustomRunManager::FetchEnergy()
 
 G4double CustomRunManager::GenEnergy()
 {
-#ifdef DEBUG_MC_NODES
-	//G4cout << "" << G4endl;
+#ifdef AR_EMISSION_NITRO
+	if (EnergySpectrum)
+		return initial_energy = EnergySpectrum->Value(G4UniformRand());
+	else
 #endif
-	if (current_working_node != NULL)
-		return initial_energy = current_working_node->GenEnergy();
-// 9.65*eV ==128nm
-// 3.9236*eV == 316nm
-// 3.6791*eV == 337nm
-// 3.4632*eV == 358nm
-// 3.2585*eV == 380.5nm
-// 3.0538*eV == 406nm
-	return initial_energy = 3.9236*eV; //primary event parameters are such for a while
+	{
+#ifdef DEBUG_MC_NODES
+		//G4cout << "" << G4endl;
+#endif
+		if (current_working_node != NULL)
+			return initial_energy = current_working_node->GenEnergy();
+		// 9.65*eV ==128nm
+		// 3.9236*eV == 316nm
+		// 3.6791*eV == 337nm
+		// 3.4632*eV == 358nm
+		// 3.2585*eV == 380.5nm
+		// 3.0538*eV == 406nm
+		return initial_energy = 9.65*eV; //primary event parameters are such for a while
+	}
 }
 
 PseudoMeshData*	CustomRunManager::GenMappingState() //Position is assumed to be already updated before the call
@@ -462,6 +475,20 @@ PseudoMeshData*	CustomRunManager::GenMappingState() //Position is assumed to be 
 		*curr_mapping_state = *temp;
 	return curr_mapping_state;
 }
+
+#ifdef AR_EMISSION_NITRO
+void CustomRunManager::GenEnergySpectrum()
+{
+	B1DetectorConstruction* detectorConstruction = (B1DetectorConstruction*)(GetUserDetectorConstruction());
+	G4VPhysicalVolume *ph_v = detectorConstruction->GetPVolumeByPoint(FetchPosition(), FetchMomentum());
+	G4Material* mat;
+	G4MaterialPropertiesTable* aMaterialPropertiesTable;
+	mat=ph_v->GetLogicalVolume()->GetMaterial();
+	aMaterialPropertiesTable = mat->GetMaterialPropertiesTable();
+	if (aMaterialPropertiesTable)
+		EnergySpectrum = aMaterialPropertiesTable->GetProperty("WLS_ENERGY_SPECTRUM");
+}
+#endif
 
 G4double CustomRunManager::get_new_spawn_prob()
 {
@@ -607,6 +634,7 @@ G4int CustomRunManager::get_detected_spectrum(std::list<G4double> *energies, std
 	return 0;
 }
 
+//TODO: rework via general methods
 void CustomRunManager::get_detected_spectrum(G4double reach_node_prob, MC_node* node, std::list<G4double> *energies, std::list < G4double> *probabilities)
 {
 	G4double probab = reach_node_prob*node->node_probability;
@@ -804,7 +832,7 @@ void CustomRunManager::export_to_bmp(std::list<G4double>* hits_xs, std::list<G4d
 	bmp.close();
 	//END BMP OUTPUT
 	delete[] _bits;
-}S
+}
 #endif
 
 void CustomRunManager::OnEventStartProc()
@@ -813,8 +841,11 @@ void CustomRunManager::OnEventStartProc()
 	GenPosition();
 	GenPolarization();
 	GenMomentum();
-	GenEnergy();
 	GenMappingState();
+#ifdef AR_EMISSION_NITRO
+	GenEnergySpectrum();//after GenPos. and GenMom.
+#endif
+	GenEnergy();
 	detectorConstruction->OnEventStartProc(this);
 }
 
@@ -826,7 +857,9 @@ G4ThreeVector CustomRunManager::MappingProc(const G4Track& track, const G4Step& 
 
 void CustomRunManager::OnNewSimulationProc(void)
 {
+#ifndef AR_SPEC_TEST
 	sim_results->UpdateProbabilities(primary_Monte_Carlo);
 	sim_results->UpdateSpectra(primary_Monte_Carlo);
 	primary_Monte_Carlo->events.pop_back(); //discard previous simulation in order to decrease memory usage
+#endif
 }

@@ -92,9 +92,6 @@ G4double B1DetectorConstruction::GetHitProbability(G4StepPoint* post_point)
 	{
 		if (*j == in_volume)
 		{
-//#ifdef TEMP_CODE_
-//			return 1;
-//#endif
 			if (is_on_boundary)
 			{
 				G4int is_valid = 1;
@@ -207,15 +204,6 @@ void B1DetectorConstruction::gen_integral_en_spec
 	G4double* i_probab = new G4double[SPEC_INTEGRATION_STEPS+1];
 	wavelengths.erase(wavelengths.begin(),wavelengths.end());
 	probs.erase(probs.begin(), probs.end());
-//#ifdef TEMP_CODE_
-//	std::ofstream diff_o(TEST_WLS_OUT_SPEC);
-//	for (G4int counter = 0; counter <= SPEC_INTEGRATION_STEPS; counter++)
-//	{
-//		diff_o << min_x + counter*(max_x - min_x) / SPEC_INTEGRATION_STEPS
-//			<< "\t" << file_vals.Value(min_x + counter*(max_x - min_x) / SPEC_INTEGRATION_STEPS) << G4endl;
-//	}
-//	diff_o.close();
-//#endif //TEMP_CODE_
 	G4double int_value=0;
 	G4double delta_x = (max_x - min_x) / SPEC_INTEGRATION_STEPS;
 	G4double point, point_left, point_right;
@@ -252,27 +240,6 @@ void B1DetectorConstruction::gen_integral_en_spec
 	}
 	G4MaterialPropertyVector *integral_spec =new G4MaterialPropertyVector(i_probab, i_wavelengths, SPEC_INTEGRATION_STEPS+1);
 	table->AddProperty("WLS_ENERGY_SPECTRUM", integral_spec);
-//#ifdef TEMP_CODE_
-//	diff_o.open(TEST_WLS_OUT_I_SPEC,std::ios_base::trunc);
-//	G4double probab;
-//	for (G4int counter = 0; counter <= SPEC_INTEGRATION_STEPS; counter++)
-//	{
-//		probab = 1.0*counter / SPEC_INTEGRATION_STEPS;
-//		diff_o << 1.2398e3*eV/integral_spec->Value(probab)/*/(1*eV)*/<< "\t" << probab<< G4endl;
-//	}
-//	diff_o.close();
-//
-//	diff_o.open(TEST_OUT_I_SPEC1, std::ios_base::trunc);
-//	G4double diff;
-//	for (G4int counter = 0; counter <= SPEC_INTEGRATION_STEPS; counter++)
-//	{
-//		//probab = (double)counter / SPEC_INTEGRATION_STEPS;
-//		diff = (counter == SPEC_INTEGRATION_STEPS ? 0 : -(i_probab[counter] - i_probab[counter + 1]) /
-//			(integral_spec->Value(i_probab[counter]) - integral_spec->Value(i_probab[counter + 1])));
-//		diff_o << 1.2398e3*eV / integral_spec->Value(i_probab[counter])/*/(1*eV)*/ << "\t" << diff << G4endl;
-//	}
-//	diff_o.close();
-//#endif //TEMP_CODE_
 	delete[] temp_wavelengths;
 	delete[] temp_weights;
 	delete[] i_wavelengths;
@@ -314,6 +281,36 @@ void B1DetectorConstruction::gen_PMT_QE(G4String file, G4MaterialPropertiesTable
 	delete[] _probs;
 }
 
+void B1DetectorConstruction::read_table_En(G4String file, G4double* &Ens, G4double* &ys, G4int &size)
+{
+	std::list<G4double> __xs,__ys;
+	std::ifstream fl(file);
+	while (!fl.eof())
+	{
+		G4double x, y;
+		fl >> x;
+		if (fl.eof())
+			break;
+		fl >> y;
+		__xs.push_back(x);
+		__ys.push_back(y);
+	}
+	fl.close();
+	if (Ens)
+		delete[] Ens;
+	if (ys)
+		delete[] ys;
+	Ens = new G4double[__xs.size()];
+	ys = new G4double[__xs.size()];
+	size = (__xs.size() > __xs.size()) ? __xs.size() : __ys.size();
+	G4int g = 0;
+	for (auto u = __xs.begin(), j = __ys.begin(); u != __xs.end(); u++,j++,g++)
+	{
+		Ens[g] = *u*eV;
+		ys[g] = *j;
+	}
+}
+
 G4Material* B1DetectorConstruction::_Argon_mat(void)
 {
 	G4Material* _Argon = new G4Material("Argon",18,39.95*g/mole, 1.784e-3*273/87*g/cm3,kStateGas,87*kelvin,1*atmosphere);
@@ -321,7 +318,7 @@ G4Material* B1DetectorConstruction::_Argon_mat(void)
 	G4double energies[8] = { 2.72 * eV, 2.95 * eV, 3.05*eV, 3.26*eV, 3.46*eV, 3.68*eV, 3.92*eV,9.68*eV};
 	G4double rindexes[8] = { 1.01, 1.01, 1.01, 1.01, 1.01, 1.01, 1.01, 1.01};
 	prop_table->AddProperty("RINDEX", energies, rindexes, 8);
-	//TODO: gen_integral_en_spec(ARGON_SPECTRUM_FILE, prop_table); //emission parameters, used in CustomRunManger
+	gen_integral_en_spec(ARGON_SPECTRUM_FILE, prop_table); //emission parameters, used in CustomRunManger
 	_Argon->SetMaterialPropertiesTable(prop_table);
 	return _Argon;
 }
@@ -374,12 +371,23 @@ void B1DetectorConstruction::_SetCopperSurface(G4OpticalSurface* surface)
 	surface->SetFinish(polished);
 	surface->SetModel(glisur);
 	G4MaterialPropertiesTable* prop_table = new G4MaterialPropertiesTable();
+#ifdef REFLECTIVITY_COPPER_MODEL
+	G4int num = 0;
+	G4double *Ens =NULL, *Rs = NULL;
+	read_table_En(COPPER_REFLECTIVITY,Ens,Rs,num);
+	prop_table->AddProperty("REFLECTIVITY",Ens,Rs,num);
+	if (Ens)
+		delete [] Ens;
+	if (Rs)
+		delete [] Rs;
+#else
 	G4double en_index[17]={2.63*eV,2.75*eV,2.88*eV,3.37*eV,3.87*eV,4.12*eV,4.24*eV,4.36*eV,4.49*eV,4.61*eV,4.74*eV,4.86*eV,5.11*eV,5.60*eV,5.98*eV,6.60*eV,9.68*eV};
 	G4double r_rindex[17] ={1.25,	1.24,	1.25,	1.36,	1.38,	1.40,	1.42,	1.45,	1.46,	1.45,	1.41,	1.41,	1.34,	1.13,	1.01,	0.94,	1.12};
 	G4double i_rindex[17] ={2.483,	2.397,	2.305,	1.975,	1.783,	1.679,	1.633,	1.633,	1.646,	1.668,	1.691,	1.741,	1.799,	1.737,	1.599,	1.337,	0.7284};
 	//^Phys. Rev. Vol.6, Number 12, P.B. Jonson and R. W. Christy "Optical Constants of the Noble Metals", table 1 p.4347
 	prop_table->AddProperty("REALRINDEX", en_index, r_rindex, 17);
 	prop_table->AddProperty("IMAGINARYRINDEX", en_index, i_rindex, 17);
+#endif
 	surface->SetMaterialPropertiesTable(prop_table);
 }
 
@@ -689,7 +697,8 @@ G4VPhysicalVolume* B1DetectorConstruction::Construct()
 	  Yp_PMT, "Y_PositivePMT", envelope, false, 0, checkOverlaps);
   G4VPhysicalVolume* phys_Yn_PMT = new G4PVPlacement(y_rot_m, G4ThreeVector(0, -0.5*(141 * mm + 2 * (WLS_FILM_WIDTH + PMMA_WIDTH + 2 * mm) + 4 * mm), 0),
 	  Yn_PMT, "Y_NegativePMT", envelope, false, 0, checkOverlaps);
-            
+
+  //\/mind the order of volumes in LogicalBorderSurface W!!!
 #ifndef TOP_MESH_TEST
   G4OpticalSurface* top_plate_surface = new G4OpticalSurface("top_plate_surface");
   G4LogicalBorderSurface* logical_top_plate_surface = new G4LogicalBorderSurface("top_plate_surface", phys_top_pseudo_GEM, phys_top_CU, top_plate_surface);
@@ -700,13 +709,13 @@ G4VPhysicalVolume* B1DetectorConstruction::Construct()
   _SetCopperSurface(bot_plate_surface0);
 #if !(defined(TOP_MESH_TEST)||defined(TEST_MESH_SIDEWAYS)) //to both reflect and deflect photons for mesh testing
   G4OpticalSurface* top_plate_surface_r = new G4OpticalSurface("top_plate_real_surface");
-  G4LogicalBorderSurface* logical_top_real_plate_surface = new G4LogicalBorderSurface("top_plate_real_surface", phys_top_cell,
-	  phys_top_cell_container, top_plate_surface_r);
+  G4LogicalBorderSurface* logical_top_real_plate_surface = new G4LogicalBorderSurface("top_plate_real_surface", phys_top_cell_container,
+	  phys_top_cell , top_plate_surface_r);
   _SetCopperSurface(top_plate_surface_r);
 #endif
   G4OpticalSurface* bot_plate_surface_r = new G4OpticalSurface("bot_plate_real_surface");
-  G4LogicalBorderSurface* logical_bot_real_plate_surface = new G4LogicalBorderSurface("bot_plate_real_surface", phys_bot_cell,
-	  phys_bot_cell_container, bot_plate_surface_r);
+  G4LogicalBorderSurface* logical_bot_real_plate_surface = new G4LogicalBorderSurface("bot_plate_real_surface", phys_bot_cell_container,
+	  phys_bot_cell, bot_plate_surface_r);
   _SetCopperSurface(bot_plate_surface_r);
   _SetVisibilityParameters();
 
@@ -718,7 +727,11 @@ G4VPhysicalVolume* B1DetectorConstruction::Construct()
   detector_volumes.push_back(top_mesh_test_detector);
   detector_volumes.push_back(LAr_layer);
 #else
+#ifdef AR_SPEC_TEST
+  detector_volumes.push_back(top_mesh_absorber);
+#else
   absorbtion_volumes.push_back(top_mesh_absorber);
+#endif
 #endif
   absorbtion_volumes.push_back(bot_mesh_absorber);
 
@@ -879,13 +892,19 @@ void B1DetectorConstruction :: _SetVisibilityParameters(void)
 void B1DetectorConstruction::OnEventStartProc(CustomRunManager* manman)
 {}
 
-//It's ok to use Navigator here, because this function must be called before start of an event
-void B1DetectorConstruction::GetPseudoMeshByPoint(PseudoMeshData* data, G4ThreeVector pos, G4ThreeVector momDir)
+//called before the start of an event
+G4VPhysicalVolume* B1DetectorConstruction::GetPVolumeByPoint(G4ThreeVector pos, G4ThreeVector momDir)
 {
 	G4TransportationManager* transportMgr;
 	transportMgr = G4TransportationManager::GetTransportationManager();
 	G4Navigator* fLinearNavigator = transportMgr->GetNavigatorForTracking();
-	G4VPhysicalVolume *ph_v=fLinearNavigator->LocateGlobalPointAndSetup(pos, &momDir);
+	return fLinearNavigator->LocateGlobalPointAndSetup(pos, &momDir);
+}
+
+//It's ok to use Navigator here, because this function must be called before start of an event
+void B1DetectorConstruction::GetPseudoMeshByPoint(PseudoMeshData* data, G4ThreeVector pos, G4ThreeVector momDir)
+{
+	G4VPhysicalVolume *ph_v=GetPVolumeByPoint(pos, momDir);
 	G4bool found = 0;
 	G4LogicalVolume *origin = top_GEM->cell;
 	found = FindDaughterPhysicalInL(ph_v, origin);

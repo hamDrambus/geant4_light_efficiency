@@ -868,7 +868,7 @@ void CustomOpBoundaryProcess::DielectricDielectric(const G4Step* aStep)
 				DoReflection();
 		  else
 		  {
-			  /*this is the only case at the moment. If complicated methods will be employed
+			  /*this is the only case at the moment. If more complicated methods will be employed
 			  the algorithm must be modifyed: consider all possible probabilities and using decider (from RunManager) create new appropriate MC nodes
 			  for every type of process with corresponding distributions. At the moment (start of this project) decider checks whether
 			  simple total internal reflection (and deflectioin below) should be processed further
