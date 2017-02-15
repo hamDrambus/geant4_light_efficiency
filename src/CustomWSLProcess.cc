@@ -91,16 +91,16 @@ CustomWLSProcess::PostStepDoIt(const G4Track& aTrack, const G4Step& aStep)
 		return G4VDiscreteProcess::PostStepDoIt(aTrack, aStep);
 	}
 
-	if ((abs_len)&&(wls_efficiency)) {
+	if (abs_len) {
 		absorb_l = GetMaterialAbsLength(abs_len,photon_energy);
 		if (absorb_l==DBL_MAX)
 			return G4VDiscreteProcess::PostStepDoIt(aTrack, aStep); //TODO: error?
-		wls_eff= wls_efficiency->Value(photon_energy);
 	}
-	else {
+	else
 		return G4VDiscreteProcess::PostStepDoIt(aTrack, aStep);
-	}
-
+	if (wls_efficiency)
+		wls_eff = wls_efficiency->Value(photon_energy);
+	else wls_eff = 0;
 	G4double path_l=(EndPoint- StartPoint).getR();
 	G4double reemiss_prob = wls_eff*(1.0-exp(-path_l / absorb_l));
 	G4double continue_prob = exp(-path_l / absorb_l);

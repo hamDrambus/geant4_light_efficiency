@@ -66,11 +66,13 @@ G4int CustomRunManager::spawn_new_MC_node(const G4Step* step, G4double prob,
 	if (depth >= 3)
 #endif
 #if !(defined(TOP_MESH_TEST)||defined(TEST_MESH_SIDEWAYS))
-	if (depth >= 8)
+	if (depth >= 8)//8
 #endif
 
 	{
-		num_of_sims = 0;
+#ifdef TEMP_CODE_
+		//num_of_sims = 0;
+#endif
 		goto endf;
 	}
 	//if (depth >= 2)
@@ -112,12 +114,12 @@ G4int CustomRunManager::spawn_new_MC_node(const G4Step* step, G4double prob, G4M
 	//	num_of_sims = 0;
 	//	goto endf;
 	//}
-	//if (depth >= 2)
-	//{
-	//	num_of_sims = 0;
-	//	goto endf;
-	//}
-	if (depth >= 1)
+	if (depth >= 2)
+	{
+		num_of_sims /= 10;
+		goto endf;
+	}
+	if (depth >= 1)//1
 		num_of_sims = 0;// num_of_sims / 10.0;
 endf:
 	if (num_of_sims == 0)
@@ -326,29 +328,43 @@ G4int CustomRunManager::select_photon_BP(const G4Step* step, G4ThreeVector defl_
 		= static_cast<const B1DetectorConstruction*> (this->GetUserDetectorConstruction());
 	G4LogicalVolume* pre_volume=step->GetPreStepPoint()->GetTouchableHandle()->GetVolume()->GetLogicalVolume();
 	G4LogicalVolume* post_volume = step->GetPostStepPoint()->GetTouchableHandle()->GetVolume()->GetLogicalVolume();
-	if ((pre_volume == detC->bot_ps_plate) || (pre_volume == detC->top_ps_plate))
+	if ((current_working_node) && (defl_momentum.mag() == 0))//in case of internal reflections
 	{
-		if ((post_volume != detC->bot_cu_plate) && (post_volume != detC->top_cu_plate))
-			return RM_CHOOSE_DEFL;
-		else
-			return RM_CHOOSE_REFL;
+		if (current_working_node->is_reemissed())//double reemission is frobidden, 
+			//so no further tracking of inrenally reflected photons
+			return RM_CHOOSE_KILL;
 	}
+	if ((post_volume == detC->Xn_PMT) || (post_volume == detC->Xp_PMT) || (post_volume == detC->Yn_PMT) || (post_volume == detC->Yp_PMT))
+		return RM_CHOOSE_DEFL; //TODO: should be both?
+#if defined(TOP_MESH_TEST)||defined(TEST_MESH_SIDEWAYS)
 	if (((pre_volume == detC->top_cell_hole) || (pre_volume == detC->top_cell_container) || (pre_volume == detC->top_cell_hole_dielectric)))
 	{
-#if defined(TOP_MESH_TEST)||defined(TEST_MESH_SIDEWAYS)
 		return RM_CHOOSE_BOTH;
-#endif
-		if (post_volume==detC->top_cell)
-
-			return RM_CHOOSE_REFL;
 	}
-	if (post_volume == detC->bot_cell)
+#else
+	//6 unreachable volumes (absorbe light, but for speed increase are also here):
+	//TODO: figure out dielectic's (g10's) properties
+	if (((post_volume == detC->bot_cu_plate) || (post_volume == detC->top_cu_plate)) && (pre_volume!=post_volume))
+			return RM_CHOOSE_REFL;
+	if ((post_volume == detC->top_cell) && (post_volume!=pre_volume))
 		return RM_CHOOSE_REFL;
-	if (post_volume == detC->top_cell_hole_dielectric)
-		return RM_CHOOSE_BOTH;
-#ifdef TEMP_CODE_
-	return RM_CHOOSE_DEFL;
+	if ((post_volume == detC->top_cell_hole_dielectric) && (post_volume != pre_volume))
+		return RM_CHOOSE_REFL;
 #endif
+	if ((post_volume == detC->bot_cell) && (post_volume != pre_volume))
+		return RM_CHOOSE_REFL;
+	if ((post_volume == detC->bot_cell_hole_dielectric) && (post_volume != pre_volume))
+		return RM_CHOOSE_REFL;
+	//no rules for holes, containers and pseudoplates, because by geometry defs they all have the same refractive index
+	if (((pre_volume == detC->Xn_wls) || (pre_volume == detC->Xp_wls) || (pre_volume == detC->Yn_wls) || (pre_volume == detC->Yp_wls))
+		&& ((post_volume == detC->box_interior) || (post_volume == detC->LAr_layer) || (post_volume == detC->box) ||
+		(post_volume == detC->bot_ps_plate) || (post_volume == detC->top_ps_plate)))
+		return RM_CHOOSE_REFL;
+	//^the last condition means that photons, leaving wls and heading inside are supreessed
+	//^TODO: this probably should be done by adding absorbtion inside the argon
+//#ifdef TEMP_CODE_
+//	return RM_CHOOSE_DEFL;
+//#endif
 	return RM_CHOOSE_BOTH; //TODO: W! too much treeing
 }
 
@@ -436,17 +452,17 @@ G4double CustomRunManager::FetchEnergy()
 
 G4double CustomRunManager::GenEnergy()
 {
-#ifdef AR_EMISSION_NITRO
-	if (EnergySpectrum)
-		return initial_energy = EnergySpectrum->Value(G4UniformRand());
-	else
-#endif
-	{
 #ifdef DEBUG_MC_NODES
 		//G4cout << "" << G4endl;
 #endif
 		if (current_working_node != NULL)
 			return initial_energy = current_working_node->GenEnergy();
+#ifdef AR_EMISSION_NITRO
+		if (EnergySpectrum)
+			return initial_energy = EnergySpectrum->Value(G4UniformRand());
+		else
+#endif
+	{
 		// 9.65*eV ==128nm
 		// 3.9236*eV == 316nm
 		// 3.6791*eV == 337nm
@@ -483,8 +499,9 @@ void CustomRunManager::GenEnergySpectrum()
 	G4VPhysicalVolume *ph_v = detectorConstruction->GetPVolumeByPoint(FetchPosition(), FetchMomentum());
 	G4Material* mat;
 	G4MaterialPropertiesTable* aMaterialPropertiesTable;
-	mat=ph_v->GetLogicalVolume()->GetMaterial();
-	aMaterialPropertiesTable = mat->GetMaterialPropertiesTable();
+	G4LogicalVolume *l_v = ph_v ? ph_v->GetLogicalVolume():NULL;
+	mat=l_v? l_v->GetMaterial():NULL;
+	aMaterialPropertiesTable = mat?mat->GetMaterialPropertiesTable():NULL;
 	if (aMaterialPropertiesTable)
 		EnergySpectrum = aMaterialPropertiesTable->GetProperty("WLS_ENERGY_SPECTRUM");
 }

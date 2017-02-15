@@ -30,10 +30,12 @@
 
 #define TEMP_CODE_
 //^marks everything that is temporary so I don't forget
+
 #define WLS_FILM_WIDTH 100*micrometer
 #define PMMA_WIDTH 1.5*mm
 #define PMT_DIAMETER 51*mm
-#define MIN_ALLOWED_PROBABILITY 4e-6
+#define MIN_ALLOWED_PROBABILITY 1e-6
+//^was 4e-6
 #define MIN_ALLOWED_STEPPING 4e-6
 #define SPEC_INTEGRATION_STEPS 1000
 #define RM_PHOTON_UNDEFINED	-2

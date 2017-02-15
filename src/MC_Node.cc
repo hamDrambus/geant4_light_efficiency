@@ -573,6 +573,8 @@ int MC_node::is_reemissed(void)
 {
 	MC_node* p = this;
 	photon_event* par;
+	if (p->chosen_type == MC_NODE_CONTINIOUS)
+		return 1;
 	while (NULL != p)
 	{
 		par = p->ev_parent;
