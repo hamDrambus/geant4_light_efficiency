@@ -19,11 +19,11 @@ class CustomRunManager;
 
 class B1DetectorConstruction : public G4VUserDetectorConstruction
 {
-  public:
-    B1DetectorConstruction();
-    virtual ~B1DetectorConstruction();
+public:
+	B1DetectorConstruction();
+	virtual ~B1DetectorConstruction();
 
-    virtual G4VPhysicalVolume* Construct();
+	virtual G4VPhysicalVolume* Construct();
 
 	G4double GetHitProbability(G4StepPoint* post_point);
 	//^returns -1 if there is no hit (continue run) or probability of photon detection [0;1]
@@ -41,13 +41,14 @@ private:
 	G4Material* _FusedSilica_mat(void); //PMT
 	G4Material* _fr4_mat(void);
 	void _SetCopperSurface(G4OpticalSurface* surface);
+	void _SetG10Surface(G4OpticalSurface* surface);
 	void _SetVisibilityParameters(void);
 public:
 	G4double GetSafeOffset(void);
 	//returns small length which can be taken from volume boundary and be guaranteed to lead to a neighbour one.
 	//e.g. auxilary volumes are always have offset of 0.5-1 mm from thier content 
 	void OnEventStartProc(CustomRunManager* manman); //not used now
-	G4ThreeVector MappingProc(PseudoMeshData *psm_data, const G4Track& track, 
+	G4ThreeVector MappingProc(PseudoMeshData *psm_data, const G4Track& track,
 		const G4Step& aStep, G4TouchableHandle &fCurrentTouchableHandle);
 	void GetPseudoMeshByPoint(PseudoMeshData* data, G4ThreeVector pos, G4ThreeVector momDir); //changes only data->curr_mesh
 	G4VPhysicalVolume* GetPVolumeByPoint(G4ThreeVector pos, G4ThreeVector momDir);
@@ -57,13 +58,20 @@ public:
 	G4LogicalVolume* bot_ps_plate;
 	G4LogicalVolume* top_cu_plate; //just a solid plate
 	G4LogicalVolume* bot_cu_plate;
-	G4LogicalVolume* LAr_layer;
+	G4LogicalVolume* LAr_layer;//above the bottom GEM
+	G4LogicalVolume* bot_LAr_layer;//below bottom GEM
+
+	//these are between bottom pseudo_plate and wls
+	G4LogicalVolume* Xp_LAr_layer;
+	G4LogicalVolume* Xn_LAr_layer;
+	G4LogicalVolume* Yp_LAr_layer;
+	G4LogicalVolume* Yn_LAr_layer;
 
 	G4LogicalVolume* top_cell_container;
 	G4LogicalVolume* top_cell;
 	G4LogicalVolume* top_cell_hole;
 	G4LogicalVolume* top_cell_hole_dielectric;
-	
+
 	G4LogicalVolume* bot_cell_container;
 	G4LogicalVolume* bot_cell;
 	G4LogicalVolume* bot_cell_hole;
@@ -87,6 +95,7 @@ public:
 	G4LogicalVolume* Yp_acrylic;
 	G4LogicalVolume* Yn_acrylic;
 
+	//these are between acrylic and PMTs
 	G4LogicalVolume* Xp_LAr_gap;
 	G4LogicalVolume* Xn_LAr_gap;
 	G4LogicalVolume* Yp_LAr_gap;
@@ -114,11 +123,10 @@ public:
 
 private:
 	void wavelen_transmittance_to_table(G4MaterialPropertiesTable* table, const G4double* wl, const G4double* tr, G4int size, G4double width);
-	void gen_integral_en_spec (G4String file, G4MaterialPropertiesTable* table);
+	void gen_integral_en_spec(G4String file, G4MaterialPropertiesTable* table);
 	void gen_PMT_QE(G4String file, G4MaterialPropertiesTable* table);
 	void read_table_En(G4String file, G4double* &Ens, G4double* &ys, G4int &size);
 	G4ThreeVector get_global_normal(G4StepPoint* point, G4int *validity);
 };
 
 #endif
-

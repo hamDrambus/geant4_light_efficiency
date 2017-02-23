@@ -37,10 +37,6 @@ public:
 	G4LogicalVolume* cell;
 	//G4int *curr_x_id, *curr_y_id; //contain only single int value
 	
-#ifdef TEMP_CODE_
-	G4ThreeVector last_ret;
-#endif
-
 	G4ThreeVector g_parent_pos;/*center*/
 	G4double par_x_size;
 	G4double par_y_size;

@@ -134,9 +134,6 @@ G4VParticleChange* CustomMapProcess::PostStepDoIt(const G4Track& track, const G4
 			&-(track.GetMomentumDirection()), true);
 		//^first geeting 'from' touchable hence -track...
 		fCurrentTouchableHandle = fLinearNavigator->CreateTouchableHistory();
-#ifdef TEMP_CODE_
-		G4VPhysicalVolume* temp_pp_ =fCurrentTouchableHandle->GetVolume();
-#endif
 		if (0 == temp_p) //something is not ok. TODO: this scenario should be tested.
 		{
 			fCurrentTouchableHandle->UpdateYourself(temp_p);
@@ -149,9 +146,6 @@ G4VParticleChange* CustomMapProcess::PostStepDoIt(const G4Track& track, const G4
 		else
 			fLinearNavigator->LocateGlobalPointAndUpdateTouchableHandle(fTransportEndPosition, track.GetMomentumDirection(),
 			fCurrentTouchableHandle, true);
-#ifdef TEMP_CODE_
-		temp_pp_ = fCurrentTouchableHandle->GetVolume();
-#endif
 		if (fCurrentTouchableHandle == 0) // Check whether the particle is out of the world volume
 		{
 			fParticleChange.ProposeTrackStatus(fStopAndKill);

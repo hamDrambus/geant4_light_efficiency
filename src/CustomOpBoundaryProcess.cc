@@ -136,10 +136,6 @@ CustomOpBoundaryProcess::PostStepDoIt(const G4Track& aTrack, const G4Step& aStep
         }
         else 
         {
-#ifdef TEMP_CODE_
-			CustomRunManager* manman = (CustomRunManager*)(G4RunManager::GetRunManager());
-			B1DetectorConstruction* detectorConstruction = (B1DetectorConstruction*)(manman->GetUserDetectorConstruction());
-#endif
 		  G4ExceptionDescription ed;
           ed << " G4OpBoundaryProcess/PostStepDoIt(): "
                  << " The Navigator reports that it returned an invalid normal"

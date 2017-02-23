@@ -63,7 +63,7 @@ public:
 #if defined(TOP_MESH_TEST)||defined(TEST_MESH_SIDEWAYS)
 	G4int spawn_new_MC_node(const G4Step* step, G4double prob, G4Material *WSL_pars, G4int num_of_sims =0);
 #else
-	G4int spawn_new_MC_node(const G4Step* step, G4double prob, G4Material *WSL_pars, G4int num_of_sims = 100);//150
+	G4int spawn_new_MC_node(const G4Step* step, G4double prob, G4Material *WSL_pars, G4int num_of_sims = 30);//150
 #endif
 #ifdef TOP_MESH_TEST
 	std::list<G4double> top_hits_xs, top_hits_ys, top_hits_probs;
@@ -111,10 +111,10 @@ public:
 #ifdef TOP_MESH_TEST
 		x_num = 600;
 		y_num = 450;
-		x_start = 8 * mm / 2;
-		y_start = 0 * mm / 2;
-		t_step = 0.1*mm;
-		t_uncert = 0.05*mm;
+		x_start = -20 * mm;
+		y_start = -70 * mm;
+		t_step = 0.2*mm;
+		t_uncert = 0.001*mm;
 		t_counter = 0;
 #endif
 	};

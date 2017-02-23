@@ -108,17 +108,17 @@ G4int CustomRunManager::spawn_new_MC_node(const G4Step* step, G4double prob, G4M
 #endif
 		return 0;
 	}
-	G4int depth = get_sim_depth(MC_NODE_CONTINIOUS);
+	G4int depth = get_sim_depth(MC_NODE_CONTINIOUS); //does not work correctly?
 	//if (depth >= 3)
 	//{
 	//	num_of_sims = 0;
 	//	goto endf;
 	//}
-	if (depth >= 2)
-	{
-		num_of_sims /= 10;
-		goto endf;
-	}
+	//if (depth >= 2)
+	//{
+	//	num_of_sims /= 10;
+	//	goto endf;
+	//}
 	if (depth >= 1)//1
 		num_of_sims = 0;// num_of_sims / 10.0;
 endf:
@@ -335,7 +335,7 @@ G4int CustomRunManager::select_photon_BP(const G4Step* step, G4ThreeVector defl_
 			return RM_CHOOSE_KILL;
 	}
 	if ((post_volume == detC->Xn_PMT) || (post_volume == detC->Xp_PMT) || (post_volume == detC->Yn_PMT) || (post_volume == detC->Yp_PMT))
-		return RM_CHOOSE_DEFL; //TODO: should be both?
+		return RM_CHOOSE_BOTH;//return RM_CHOOSE_DEFL; //TODO: should be both?
 #if defined(TOP_MESH_TEST)||defined(TEST_MESH_SIDEWAYS)
 	if (((pre_volume == detC->top_cell_hole) || (pre_volume == detC->top_cell_container) || (pre_volume == detC->top_cell_hole_dielectric)))
 	{
@@ -359,7 +359,8 @@ G4int CustomRunManager::select_photon_BP(const G4Step* step, G4ThreeVector defl_
 	if (((pre_volume == detC->Xn_wls) || (pre_volume == detC->Xp_wls) || (pre_volume == detC->Yn_wls) || (pre_volume == detC->Yp_wls))
 		&& ((post_volume == detC->box_interior) || (post_volume == detC->LAr_layer) || (post_volume == detC->box) ||
 		(post_volume == detC->bot_ps_plate) || (post_volume == detC->top_ps_plate)))
-		return RM_CHOOSE_REFL;
+		//return RM_CHOOSE_REFL;
+		return RM_CHOOSE_BOTH;
 	//^the last condition means that photons, leaving wls and heading inside are supreessed
 	//^TODO: this probably should be done by adding absorbtion inside the argon
 //#ifdef TEMP_CODE_
@@ -400,7 +401,12 @@ G4ThreeVector CustomRunManager::GenPosition()
 #ifdef AR_SPEC_TEST
 	return initial_position = G4ThreeVector(0, -0.45*sqrt(3)/2, 10.9);
 #endif
-	return initial_position = G4ThreeVector(0, 0, 0); //primary event parameters are such for a while
+	//return initial_position = G4ThreeVector(0, ((141.0/2)+(WLS_FILM_WIDTH/2))*mm, 0);
+	G4double phi = 2 * CLHEP::pi*G4UniformRand();
+	G4double D = CONVERSION_DIAM > GEM_SIZE_TOTAL ? GEM_SIZE_TOTAL : CONVERSION_DIAM;
+	G4double r = 0.5*D*sqrt(G4UniformRand());
+	G4double z = (10.9 - (-6.9))*G4UniformRand() - 6.9;
+	return initial_position = G4ThreeVector(r*cos(phi), r*sin(phi), z);
 }
 
 G4ThreeVector CustomRunManager::FetchMomentum()
@@ -427,6 +433,7 @@ G4ThreeVector CustomRunManager::GenMomentum()
 #ifdef AR_SPEC_TEST
 	return initial_momentum_direction = G4ThreeVector(0, 0, 1).unit();
 #endif
+	//return initial_momentum_direction = G4ThreeVector(0, 0, -1).unit();
 	G4double phi = CLHEP::twopi*G4UniformRand();
 	G4double cos_theta = 2*(G4UniformRand())-1;
 	return initial_momentum_direction = G4ThreeVector(sin(phi)*sqrt(1 - cos_theta*cos_theta), cos(phi)*sqrt(1 - cos_theta*cos_theta), cos_theta);
@@ -774,7 +781,7 @@ void CustomRunManager::export_to_bmp(std::list<G4double>* hits_xs, std::list<G4d
 				+ (y - t_step*(y_ind + te_y_ind))*(y - t_step*(y_ind + te_y_ind));
 			//^lengths to centers of neighbour cells
 			neighbours[h] = exp(-neighbours[h] / (t_step*t_step));
-			if (((te_x_ind + x_ind) > 0) && ((te_x_ind + x_ind) < x_num) && ((te_y_ind + y_ind) > 0) && ((te_y_ind + y_ind) < y_num))
+			//if (((te_x_ind + x_ind) > 0) && ((te_x_ind + x_ind) < x_num) && ((te_y_ind + y_ind) > 0) && ((te_y_ind + y_ind) < y_num))
 				sum += neighbours[h];
 		}
 		if (0 != sum)

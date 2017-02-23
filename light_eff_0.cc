@@ -23,6 +23,7 @@
 #include "G4VSteppingVerbose.hh"
 
 #include <time.h>
+#include <windows.h>
 
 int main(int argc,char** argv)
 {
@@ -61,7 +62,11 @@ int main(int argc,char** argv)
 #ifdef AR_SPEC_TEST
 	  runManager->BeamOn(700000);
 #else
-  runManager->BeamOn(300);
+#ifdef TOP_MESH_TEST
+  runManager->BeamOn(runManager->x_num*runManager->y_num);
+#else
+  runManager->BeamOn(5000);
+#endif
 #endif
   //DONE: TODO: check reemiss/noreemiss code
   G4double pb_total, pb_no_reemiss, pb_reemissed;
@@ -79,6 +84,11 @@ int main(int argc,char** argv)
   runManager->export_to_bmp(&runManager->top_hits_xs, &runManager->top_hits_ys, &runManager->top_hits_probs, "top_mesh_test.bmp");
   runManager->export_to_bmp(&runManager->bot_hits_xs, &runManager->bot_hits_ys, &runManager->bot_hits_probs, "bot_mesh_test.bmp");
 #endif
+  Beep(1500, 300);
+  Sleep(150);
+  Beep(1500, 300);
+  Sleep(150);
+  Beep(1500, 300);
 #ifdef G4VIS_USE
   // Initialize visualization
   G4VisManager* visManager = new G4VisExecutive;
