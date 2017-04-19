@@ -58,7 +58,9 @@ void OpticPhysicsList::ConstructProcess()
 		if (particleName == "opticalphoton") 
 		{
 			G4cout << " AddDiscreteProcesses to OpticalPhoton " << G4endl;
+#if !defined(NO_WLS_PROC)
 			pmanager->AddDiscreteProcess(wls_abs_process);
+#endif
 			pmanager->AddDiscreteProcess(boundaryProcess);
 		}
 	}

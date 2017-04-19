@@ -46,6 +46,13 @@
 #endif
 #endif
 
+//#define NO_QE_
+//#define NO_WLS_PROC
+//#define ZERO_CE_
+//#define UNITY_CE_
+//#define NO_BACK_SCATTERING
+//#define NO_VUV_WLS_FRESNEL
+
 //#define AR_EMISSION_NITRO
 //^if defined then initial photon's energy is defined by a continoius spectrum of N2 admixture
 //otherwise 128nm line is taken
@@ -53,6 +60,12 @@
 //#define AR_SPEC_TEST
 //^if defiened, then no memory decrease, top absorbed behind mesh is detector, all photons go through GEM to it;
 //^and get_detected_spectrum called after simulation. All in order to check Ar emission spectrum generation
+#endif
+
+//#define SPATIAL_ANGLE_
+#ifdef SPATIAL_ANGLE_
+#define NO_QE_
+#define UNITY_CE_
 #endif
 
 //\/in mm, diameter of cylindrical area where photons are generated

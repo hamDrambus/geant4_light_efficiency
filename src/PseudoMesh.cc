@@ -43,7 +43,9 @@ void PseudoMesh::hex_indices_by_pos(PseudoMeshData *data, G4double x, G4double y
 	for_out:
 	if (found)
 	{
-		if ((index_x <= 0) || (index_y <= 0) || (index_x>iX_max) || (index_y > iY_max))
+		//Fix: when y_index is even x must be _less_ than iXmax, not grater (see picture)
+		//hence condition x_index>max_x_index to x_index >(x_max_index-((y_index%2)?0:1)) here and everywhere
+		if ((index_x <= 0) || (index_y <= 0) || (index_x>(iX_max-(index_y%2?0:1))) || (index_y > iY_max))
 			return;
 		data->curr_x_id = index_x;
 		data->curr_y_id = index_y;
@@ -151,7 +153,7 @@ G4ThreeVector PseudoMesh::hexagonal_mapping(PseudoMeshData *data,
 		if ((abs(cell_size - x_rel)<tolerance)&&(dir.x()>0)) //leaving x+ edge
 		{
 			data->curr_x_id++;
-			if (data->curr_x_id > X_max_index)
+			if (data->curr_x_id > (X_max_index - (data->curr_y_id % 2 ? 0 : 1)))
 			{//leave cell and go to parent
 				data->curr_x_id--;
 				return hex_on_leave(data, aStep, active_x_par, active_y_par);
@@ -180,7 +182,7 @@ G4ThreeVector PseudoMesh::hexagonal_mapping(PseudoMeshData *data,
 		{
 			data->curr_x_id+=(y_index_odd?0:1);
 			data->curr_y_id++;
-			if ((data->curr_y_id>Y_max_index) || (data->curr_x_id >X_max_index))
+			if ((data->curr_y_id>Y_max_index) || (data->curr_x_id >(X_max_index - (data->curr_y_id % 2 ? 0 : 1))))
 			{//leave cell and go to parent
 				data->curr_x_id -= (y_index_odd ? 0 : 1);
 				data->curr_y_id--;

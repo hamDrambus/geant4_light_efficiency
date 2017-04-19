@@ -100,6 +100,9 @@ G4double B1DetectorConstruction::GetHitProbability(G4StepPoint* post_point)
 					if (theGlobalNormal*Momentum_dir < 0)
 						return -1;
 			}
+#ifdef NO_QE_ //QE=1
+			return 1;
+#endif
 			G4Material* mat_= in_volume->GetMaterial();
 			if (mat_)
 			{
@@ -329,8 +332,11 @@ G4Material* B1DetectorConstruction::_WLS_mat(void)
 	G4MaterialPropertiesTable* prop_table = new G4MaterialPropertiesTable();
 
 	G4double energies[4] = {2.72*eV, 2.95 * eV, 3.68*eV, 9.68 * eV }; //TODO: more data required
-	G4double rindexes[4] = { 1.62, 1.62, 1.62, 1.60}; //TODO: figure out n complexity here
-
+#ifdef NO_VUV_WLS_FRESNEL
+	G4double rindexes[4] = { 1.62, 1.62, 1.62, 1.01 };
+#else
+	G4double rindexes[4] = { 1.62, 1.62, 1.62, 1.60 }; //TODO: figure out n complexity here
+#endif
 	prop_table->AddProperty("RINDEX", energies, rindexes, 4);
 
 	G4double wavelen[22] = {340*nm, 350*nm,    360*nm, 362*nm, 366*nm, 369*nm, 372*nm, 375*nm, 378*nm, 381*nm, 384*nm, 387*nm, 390*nm, 
@@ -346,9 +352,14 @@ G4Material* B1DetectorConstruction::_WLS_mat(void)
 	wavelen_transmittance_to_table(prop_table, wavelen, transmittance, 22, WLS_FILM_WIDTH);
 
 	G4double emiss_en[8] = { 2.72 * eV, 2.95 * eV, 3.05*eV, 3.26*eV, 3.46*eV, 3.68*eV, 3.92*eV, 9.68*eV };
+#if defined(UNITY_CE_)
+	G4double emiss_eff[8] = { 1, 1, 1, 1, 1, 1, 1, 1 };
+#else
 	G4double emiss_eff[8] = { 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.58};
+#endif
+#if !defined(ZERO_CE_)
 	prop_table->AddProperty("WLS_EFFICIENCY", emiss_en, emiss_eff, 8);
-
+#endif
 	gen_integral_en_spec(WLS_SPECTRUM_FILE,prop_table);
 
 	_WLS->SetMaterialPropertiesTable(prop_table);
@@ -425,7 +436,7 @@ G4Material* B1DetectorConstruction::_Acrylic_mat(void)
 	prop_table->AddProperty("RINDEX", energies, rindexes, 6);
 	G4double wavelen[26] = { 320*nm, 336 * nm, 343.8 * nm, 350 * nm, 360 * nm, 363.5 * nm, 366.4 * nm, 367 * nm,
 		371.9 * nm, 373.5 * nm, 376 * nm, 378 * nm, 380 * nm, 382.2*nm, 385.7*nm, 387.3*nm, 390.6*nm, 
-		394.4*nm, 398.6*nm, 403.4*nm, 414.1*nm, 427.6*nm, 444 * nm, 475.3*nm, 501.1*nm, 229.8*nm};
+		394.4*nm, 398.6*nm, 403.4*nm, 414.1*nm, 427.6*nm, 444 * nm, 475.3*nm, 501.1*nm, 529.8*nm};
 	G4double transmittance[26] = {5e-6, 1e-4, 0.015,0.023,0.067, 0.115,0.182,0.270, 0.356, 0.417, 0.5,0.586, 0.652,
 		0.717, 0.782, 0.829, 0.857, 0.874, 0.886,0.892,0.894,0.897,0.9,0.902,0.905,0.908};
 #ifdef FIX_TRANSMITTANCE_
@@ -447,7 +458,11 @@ G4Material* B1DetectorConstruction::_LArgon_mat(void)
 	G4Material* _Argon = new G4Material("Liquid Argon", 18, 39.95*g / mole, 1.4* g / cm3, kStateLiquid, 87 * kelvin, 1 * atmosphere);
 	G4MaterialPropertiesTable* prop_table = new G4MaterialPropertiesTable();
 	G4double energies[10] = { 2.95 * eV, 3.2*eV, 3.4*eV, 3.8*eV, 4*eV, 5.63*eV, 6.89*eV, 7.75*eV, 8.86*eV, 9.68*eV };
-	G4double rindexes[10] = { 1.23,		 1.23,	 1.23,	 1.23,	 1.23, 1.26,	1.29,	 1.31,	  1.34,    1.38 };
+#ifdef NO_VUV_WLS_FRESNEL
+	G4double rindexes[10] = { 1.23, 1.23, 1.23, 1.23, 1.23, 1.26, 1.29, 1.31, 1.34, 1.01 };
+#else
+	G4double rindexes[10] = { 1.23, 1.23, 1.23, 1.23, 1.23, 1.26, 1.29, 1.31, 1.34, 1.38 };
+#endif
 	/*n===+0.03 of Neumeier, "Optical Properties of Liquid Noble
 	Gas Scintillators" - corrected for logbook data*/
 	prop_table->AddProperty("RINDEX", energies, rindexes, 10);
@@ -692,7 +707,9 @@ G4VPhysicalVolume* B1DetectorConstruction::Construct()
 	G4Box* solid_y_Acrylic = new G4Box("y_Acrylic", 0.5*(141 * mm + PMMA_WIDTH + 2 * WLS_FILM_WIDTH), 0.5*(PMMA_WIDTH), 0.5 *(box_sizeZ));
 	G4Box* solid_y_LArGap = new G4Box("y_LArGap", 0.5*(141 * mm + 2 * (WLS_FILM_WIDTH + PMMA_WIDTH) + 2 * mm), 0.5*(2 * mm), 0.5 *(4 + 0.5 + 20)*mm);
 	G4Box* solid_x_LArGap = new G4Box("x_LArGap", 0.5*(2 * mm), 0.5*(141 * mm + 2 * (WLS_FILM_WIDTH + PMMA_WIDTH) + 2 * mm), 0.5 *(4 + 0.5 + 20)*mm);
-
+#ifdef TEMP_CODE_
+	WLS_mat = Acrylic_mat;
+#endif
 	Xp_wls = new G4LogicalVolume(solid_x_WLS, WLS_mat, "X_PositiveWLS");
 	Xn_wls = new G4LogicalVolume(solid_x_WLS, WLS_mat, "X_NegativeWLS");
 	Yp_wls = new G4LogicalVolume(solid_y_WLS, WLS_mat, "Y_PositiveWLS");

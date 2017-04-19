@@ -60,10 +60,14 @@ public:
 	SimulationSummary* sim_results;
 
 	G4int spawn_new_MC_node(const G4Step* step, G4double prob, G4ThreeVector momentum, G4ThreeVector polarization, G4int num_of_sims = 1);
+#if !defined(SPATIAL_ANGLE_)
 #if defined(TOP_MESH_TEST)||defined(TEST_MESH_SIDEWAYS)
 	G4int spawn_new_MC_node(const G4Step* step, G4double prob, G4Material *WSL_pars, G4int num_of_sims =0);
 #else
 	G4int spawn_new_MC_node(const G4Step* step, G4double prob, G4Material *WSL_pars, G4int num_of_sims = 30);//150
+#endif
+#else
+	G4int spawn_new_MC_node(const G4Step* step, G4double prob, G4Material *WSL_pars, G4int num_of_sims = 150);//150
 #endif
 #ifdef TOP_MESH_TEST
 	std::list<G4double> top_hits_xs, top_hits_ys, top_hits_probs;

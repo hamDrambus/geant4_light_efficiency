@@ -331,7 +331,7 @@ G4int CustomRunManager::select_photon_BP(const G4Step* step, G4ThreeVector defl_
 	if ((current_working_node) && (defl_momentum.mag() == 0))//in case of internal reflections
 	{
 		if (current_working_node->is_reemissed())//double reemission is frobidden, 
-			//so no further tracking of inrenally reflected photons
+			//so no further tracking of internally reflected photons
 			return RM_CHOOSE_KILL;
 	}
 	if ((post_volume == detC->Xn_PMT) || (post_volume == detC->Xp_PMT) || (post_volume == detC->Yn_PMT) || (post_volume == detC->Yp_PMT))
@@ -359,8 +359,12 @@ G4int CustomRunManager::select_photon_BP(const G4Step* step, G4ThreeVector defl_
 	if (((pre_volume == detC->Xn_wls) || (pre_volume == detC->Xp_wls) || (pre_volume == detC->Yn_wls) || (pre_volume == detC->Yp_wls))
 		&& ((post_volume == detC->box_interior) || (post_volume == detC->LAr_layer) || (post_volume == detC->box) ||
 		(post_volume == detC->bot_ps_plate) || (post_volume == detC->top_ps_plate)))
-		//return RM_CHOOSE_REFL;
+#ifdef NO_BACK_SCATTERING
+		return RM_CHOOSE_REFL;
+#else
 		return RM_CHOOSE_BOTH;
+#endif
+		//return RM_CHOOSE_BOTH;
 	//^the last condition means that photons, leaving wls and heading inside are supreessed
 	//^TODO: this probably should be done by adding absorbtion inside the argon
 //#ifdef TEMP_CODE_

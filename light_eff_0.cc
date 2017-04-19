@@ -58,14 +58,17 @@ int main(int argc,char** argv)
   
   time_t timer_start, timer_end;
   time(&timer_start);
-
+#ifdef SPATIAL_ANGLE_
+  runManager->BeamOn(5000);
+#else
 #ifdef AR_SPEC_TEST
 	  runManager->BeamOn(700000);
 #else
 #ifdef TOP_MESH_TEST
   runManager->BeamOn(runManager->x_num*runManager->y_num);
 #else
-  runManager->BeamOn(5000);
+  runManager->BeamOn(100);
+#endif
 #endif
 #endif
   //DONE: TODO: check reemiss/noreemiss code
@@ -77,12 +80,14 @@ int main(int argc,char** argv)
   //DONE - no, no problem: TODO figure out: messed up with the names for some reason
   G4cout << "total events proceded: " << (runManager->sim_results->Num_of_events())+(runManager->extra_run_id) << G4endl;
   G4cout << "Time elapsed: "<< ((int)seconds/3600)<<"h "<<((int)seconds % 3600)/60<<"m "<<(int)seconds % 60<<"s"<<G4endl;
+#if !defined(SPATIAL_ANGLE_)
 #ifdef AR_SPEC_TEST
   runManager->get_detected_spectrum();
 #endif
 #ifdef TOP_MESH_TEST
   runManager->export_to_bmp(&runManager->top_hits_xs, &runManager->top_hits_ys, &runManager->top_hits_probs, "top_mesh_test.bmp");
   runManager->export_to_bmp(&runManager->bot_hits_xs, &runManager->bot_hits_ys, &runManager->bot_hits_probs, "bot_mesh_test.bmp");
+#endif
 #endif
   Beep(1500, 300);
   Sleep(150);
